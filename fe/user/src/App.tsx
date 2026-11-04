@@ -1,3 +1,4 @@
+import WeatherPage from "@/components/weather/WeatherPage"
 import { useEffect, useState } from "react"
 import BottomNav from "@/components/layout/BottomNav"
 import TopBar from "@/components/layout/TopBar"
@@ -63,6 +64,8 @@ function App() {
   const [activeAlerts, setActiveAlerts] = useState<AreaAlertItem[]>([])
   const [panelExpanded, setPanelExpanded] = useState(false)
   const [isNavigating, setIsNavigating] = useState(false)
+  const [mainView, setMainView] = useState<"map" | "weather">("map")
+  const [weatherTheme, setWeatherTheme] = useState<"sunny" | "rainy" | "cloudy" | "night">("rainy")
   const [activeTab, setActiveTab] = useState<AppTab>("map")
 
   const [origin, setOrigin] = useState<RouteEndpoint | null>(null)
@@ -207,10 +210,11 @@ function App() {
     <main
       className={`app-shell ${
         panelExpanded ? "panel-expanded" : "panel-collapsed"
-      } ${isNavigating ? "is-navigating" : ""}`}
+      } ${isNavigating ? "is-navigating" : ""} ${mainView === "weather" ? `in-weather-view theme-${weatherTheme}` : ""}`}
     >
       <h1 className="sr-only">SaigonDrain AI — Bản đồ an toàn TP.HCM</h1>
       <TopBar
+        activeMainTab={mainView}
         alertCount={activeAlerts.length}
         currentUser={currentUser}
         onOpenAlerts={() => {
@@ -222,11 +226,16 @@ function App() {
           setNotifMode("guide")
           setNotifOpen(true)
         }}
+        onSelectMainTab={setMainView}
         onSyncWeather={handleSyncWeather}
         weather={weather}
       />
 
-      <div className="desktop-sidebar">
+      {mainView === "weather" ? (
+        <WeatherPage onThemeChange={setWeatherTheme} />
+      ) : (
+        <>
+          <div className="desktop-sidebar">
         <RouteSearch
           destination={destination}
           onSelectDestination={setDestination}
@@ -370,6 +379,8 @@ function App() {
       </div>
 
       <BottomNav activeTab={activeTab} onSelect={selectTab} />
+        </>
+      )}
 
       <ReportModal
         onClose={() => setReportOpen(false)}

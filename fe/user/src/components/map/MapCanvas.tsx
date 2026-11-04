@@ -228,13 +228,25 @@ function MapCanvas({
         )
         if (backendRes.ok) {
           const backendData = await backendRes.json()
-          if (backendData?.safeRoute?.coordinates?.length > 1) {
-            safeCoords = backendData.safeRoute.coordinates
+          const safeC =
+            backendData?.safeRoute?.coordinates ??
+            backendData?.safeRoute?.waypoints
+          const altC =
+            backendData?.balancedRoute?.coordinates ??
+            backendData?.balancedRoute?.waypoints
+          if (
+            backendData?.provider !== "database-fallback" &&
+            Array.isArray(safeC) &&
+            safeC.length > 2
+          ) {
+            safeCoords = safeC
+            if (Array.isArray(altC) && altC.length > 2) {
+              altCoords = altC
+            }
+            if (active) setRouteStatus("live")
+          } else {
+            throw new Error("Need live road route")
           }
-          if (backendData?.balancedRoute?.coordinates?.length > 1) {
-            altCoords = backendData.balancedRoute.coordinates
-          }
-          if (active) setRouteStatus("live")
         } else {
           throw new Error("Backend route unavailable")
         }

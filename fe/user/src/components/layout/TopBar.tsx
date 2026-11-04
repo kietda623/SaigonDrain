@@ -20,6 +20,8 @@ function TopBar({
   alertCount = 0,
   onOpenAlerts,
   onOpenGuide,
+  activeMainTab = "map",
+  onSelectMainTab,
 }: {
   weather?: WeatherSnapshot | null
   onSyncWeather?: () => void
@@ -28,6 +30,8 @@ function TopBar({
   alertCount?: number
   onOpenAlerts?: () => void
   onOpenGuide?: () => void
+  activeMainTab?: "map" | "weather"
+  onSelectMainTab?: (tab: "map" | "weather") => void
 }) {
   const [vnTime, setVnTime] = useState(() => formatVietnamClock())
 
@@ -43,25 +47,48 @@ function TopBar({
     : "Mưa lớn · 27°C"
 
   return (
-    <header className="top-bar">
-      <Brand />
-      <div className="top-bar-status">
-        <span className="tracking-status">
-          <i />
-          Đang theo dõi TP.HCM · {vnTime} (GMT+7)
-        </span>
+    <header className={`top-bar ${activeMainTab === "weather" ? "in-weather-mode" : ""}`}>
+      <div className="top-bar-left">
+        <Brand />
+      </div>
+
+      {/* Main Tab Switcher in Center matching screenshot */}
+      <nav aria-label="Chuyển chế độ xem" className="top-nav-switcher">
         <button
-          aria-label="Cập nhật thời tiết thực tế từ Open-Meteo"
-          className="weather-chip"
-          onClick={onSyncWeather}
-          title="Nhấn để đồng bộ thời tiết thực tế (Open-Meteo API)"
+          aria-current={activeMainTab === "map" ? "page" : undefined}
+          className={`top-nav-pill ${activeMainTab === "map" ? "is-active" : ""}`}
+          onClick={() => onSelectMainTab?.("map")}
           type="button"
         >
-          <Icon name="rain" size={16} />
-          {weatherLabel}
+          <Icon name="map" size={17} />
+          <span>Bản đồ an toàn</span>
         </button>
-      </div>
+        <button
+          aria-current={activeMainTab === "weather" ? "page" : undefined}
+          className={`top-nav-pill ${activeMainTab === "weather" ? "is-active" : ""}`}
+          onClick={() => onSelectMainTab?.("weather")}
+          type="button"
+        >
+          <Icon name="rain" size={17} />
+          <span>Thời tiết</span>
+        </button>
+      </nav>
+
+      {/* Right Actions */}
       <div className="top-bar-actions">
+        {activeMainTab === "map" && (
+          <button
+            aria-label="Cập nhật thời tiết thực tế từ Open-Meteo"
+            className="weather-chip"
+            onClick={onSyncWeather}
+            title="Nhấn để đồng bộ thời tiết thực tế (Open-Meteo API)"
+            type="button"
+          >
+            <Icon name="rain" size={16} />
+            <span className="weather-chip-text">{weatherLabel}</span>
+          </button>
+        )}
+
         <button
           aria-label="Hướng dẫn di chuyển an toàn mùa ngập"
           className="icon-button header-action"
@@ -71,6 +98,7 @@ function TopBar({
         >
           <Icon name="help" size={20} />
         </button>
+
         <button
           aria-label={`Cảnh báo khu vực, có ${alertCount} cảnh báo đang hiệu lực`}
           className={`icon-button header-action ${alertCount > 0 ? "has-dot" : ""}`}
@@ -83,6 +111,7 @@ function TopBar({
             <span aria-hidden="true" className="notification-dot" />
           )}
         </button>
+
         <button
           aria-label={
             currentUser

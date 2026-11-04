@@ -332,73 +332,91 @@ export async function fetchJourneyRoutes(
 }> {
   try {
     const query = `fromLat=${originCoords[1]}&fromLng=${originCoords[0]}&toLat=${destCoords[1]}&toLng=${destCoords[0]}`
-    const [routesRes, computeRes] = await Promise.all([
-      fetch(`${API_BASE}/journey/routes`),
-      fetch(`${API_BASE}/journey/compute-route?${query}`),
-    ])
-
-    if (routesRes.ok || computeRes.ok) {
-      const data = routesRes.ok ? await routesRes.json() : {}
-      const computed = computeRes.ok ? await computeRes.json() : null
-
-      const safeCoords =
-        computed?.safeRoute?.coordinates ??
-        computed?.safeRoute?.waypoints ??
-        data.routes?.safe?.waypoints
-
-      const balancedCoords =
-        computed?.balancedRoute?.coordinates ??
-        computed?.balancedRoute?.waypoints ??
-        data.routes?.balanced?.waypoints
-
-      const safeRoute: RouteItem = {
-        ...(data.routes?.safe ?? EMPTY_ROUTES.safe),
-        ...(computed?.safeRoute
-          ? {
-              time: computed.safeRoute.time ?? EMPTY_ROUTES.safe.time,
-              distance:
-                computed.safeRoute.distance ?? EMPTY_ROUTES.safe.distance,
-              badge: computed.safeRoute.badge ?? "An toàn nhất",
-              detail: computed.safeRoute.detail ?? EMPTY_ROUTES.safe.detail,
-            }
-          : {}),
-        ...(Array.isArray(safeCoords) && safeCoords.length > 1
-          ? { coordinates: safeCoords }
-          : {}),
+    const computeRes = await fetch(`${API_BASE}/journey/compute-route?${query}`)
+    if (computeRes.ok) {
+      const computed = await computeRes.json()
+      if (
+        computed?.provider !== "database-fallback" &&
+        Array.isArray(computed?.safeRoute?.coordinates) &&
+        computed.safeRoute.coordinates.length > 2
+      ) {
+        return {
+          routes: {
+            safe: computed.safeRoute,
+            balanced: computed.balancedRoute ?? computed.safeRoute,
+          },
+          navigationSteps: computed.safeRoute.navigationSteps ?? [],
+          live: true,
+        }
       }
+    }
+  } catch {
+    // fallback to browser OSRM
+  }
 
-      const balancedRoute: RouteItem = {
-        ...(data.routes?.balanced ?? EMPTY_ROUTES.balanced),
-        ...(computed?.balancedRoute
-          ? {
-              time: computed.balancedRoute.time ?? EMPTY_ROUTES.balanced.time,
-              distance:
-                computed.balancedRoute.distance ??
-                EMPTY_ROUTES.balanced.distance,
-              badge: computed.balancedRoute.badge ?? "Ít điểm ngập",
-              detail:
-                computed.balancedRoute.detail ?? EMPTY_ROUTES.balanced.detail,
+  // Dự phòng trực tiếp OSRM từ trình duyệt khi Backend timeout / fallback
+  try {
+    const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${originCoords[0]},${originCoords[1]};${destCoords[0]},${destCoords[1]}?steps=true&geometries=geojson&overview=full`
+    const res = await fetch(osrmUrl)
+    if (res.ok) {
+      const data = await res.json()
+      const primaryRoute = data?.routes?.[0]
+      if (primaryRoute) {
+        const durationMinutes = Math.max(
+          1,
+          Math.round((primaryRoute.duration ?? 600) / 60),
+        )
+        const distanceKm = ((primaryRoute.distance ?? 3000) / 1000)
+          .toFixed(1)
+          .replace(".", ",")
+        const rawSteps: any[] = primaryRoute.legs?.[0]?.steps ?? []
+        const steps: NavigationStep[] = rawSteps
+          .filter((s) => s.name || s.distance > 30)
+          .slice(0, 7)
+          .map((s) => {
+            const modifier: string = s.maneuver?.modifier || ""
+            const icon = modifier.includes("left")
+              ? "turn-left"
+              : modifier.includes("right")
+                ? "turn-right"
+                : "straight"
+            const instruction =
+              icon === "turn-left"
+                ? "Rẽ trái vào"
+                : icon === "turn-right"
+                  ? "Rẽ phải vào"
+                  : "Đi theo"
+            return {
+              icon,
+              instruction,
+              street: s.name || "Trục đường chính",
+              distance: `${Math.max(50, Math.round(s.distance ?? 100))} m`,
             }
-          : {}),
-        ...(Array.isArray(balancedCoords) && balancedCoords.length > 1
-          ? { coordinates: balancedCoords }
-          : {}),
-      }
+          })
 
-      const steps: NavigationStep[] =
-        computed?.safeRoute?.navigationSteps?.length > 0
-          ? computed.safeRoute.navigationSteps
-          : data.navigationSteps?.length > 0
-            ? data.navigationSteps
-            : []
+        const safeRoute: RouteItem = {
+          id: "safe",
+          name: "Tuyến đề xuất",
+          time: `${durationMinutes} phút`,
+          distance: `${distanceKm} km`,
+          badge: "Nhanh nhất",
+          detail: `Lộ trình theo các trục đường thực tế (${distanceKm} km, khoảng ${durationMinutes} phút di chuyển).`,
+          coordinates: primaryRoute.geometry?.coordinates,
+        }
 
-      return {
-        routes: {
-          safe: safeRoute,
-          balanced: balancedRoute,
-        },
-        navigationSteps: steps,
-        live: true,
+        return {
+          routes: {
+            safe: safeRoute,
+            balanced: {
+              ...safeRoute,
+              id: "balanced",
+              name: "Tuyến dự phòng",
+              badge: "Dự phòng",
+            },
+          },
+          navigationSteps: steps,
+          live: true,
+        }
       }
     }
   } catch {

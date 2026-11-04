@@ -98,7 +98,8 @@ export class JourneyService {
             geometries: 'geojson',
             overview: 'full',
           },
-          timeout: 5000,
+          timeout: 10000,
+          headers: { 'User-Agent': 'SaigonDrain-AI/1.0' },
         }),
       );
 
