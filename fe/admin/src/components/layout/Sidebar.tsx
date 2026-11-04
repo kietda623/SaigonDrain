@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import {
   AlertTriangle,
   BarChart3,
@@ -28,6 +28,28 @@ function Sidebar({
   activeAlertCount: number
 }) {
   const asideRef = useRef<HTMLElement>(null)
+  const [vnClock, setVnClock] = useState(() =>
+    new Intl.DateTimeFormat("vi-VN", {
+      timeZone: "Asia/Ho_Chi_Minh",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(new Date()),
+  )
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setVnClock(
+        new Intl.DateTimeFormat("vi-VN", {
+          timeZone: "Asia/Ho_Chi_Minh",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+        }).format(new Date()),
+      )
+    }, 30_000)
+    return () => window.clearInterval(timer)
+  }, [])
 
   useEffect(() => {
     if (!open) return
@@ -159,7 +181,7 @@ function Sidebar({
               <span className="status-dot" />
               <strong>Hệ thống hoạt động</strong>
             </div>
-            <p>Đồng bộ lúc 18:48 · 12 cảm biến</p>
+            <p>Đồng bộ lúc {vnClock} (GMT+7) · 12 cảm biến</p>
             <div className="signal-bars" aria-hidden="true">
               <i />
               <i />

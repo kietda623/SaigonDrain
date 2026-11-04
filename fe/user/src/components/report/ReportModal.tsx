@@ -1,18 +1,82 @@
 import { useEffect, useRef, useState } from "react"
 import Icon from "@/components/ui/Icon"
-import type { ReportType, Severity } from "@/types"
+import {
+  createCitizenReport,
+  instantMatchHcmcPlaces,
+  reverseGeocodeApi,
+  searchPlacesApi,
+} from "@/lib/api"
+import type { ReportType, RouteEndpoint, Severity } from "@/types"
+
+function compressImageToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = typeof reader.result === "string" ? reader.result : ""
+      if (!result) {
+        resolve("")
+        return
+      }
+      const img = new Image()
+      img.onload = () => {
+        const maxDim = 640
+        let w = img.width
+        let h = img.height
+        if (w > maxDim || h > maxDim) {
+          if (w > h) {
+            h = Math.round((h * maxDim) / w)
+            w = maxDim
+          } else {
+            w = Math.round((w * maxDim) / h)
+            h = maxDim
+          }
+        }
+        const canvas = document.createElement("canvas")
+        canvas.width = w
+        canvas.height = h
+        const ctx = canvas.getContext("2d")
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, w, h)
+          resolve(canvas.toDataURL("image/jpeg", 0.78))
+        } else {
+          resolve(result)
+        }
+      }
+      img.onerror = () => resolve(result)
+      img.src = result
+    }
+    reader.onerror = () => resolve("")
+    reader.readAsDataURL(file)
+  })
+}
 
 function ReportModal({
   open,
   onClose,
+  reporterId,
+  onReportCreated,
 }: {
   open: boolean
   onClose: () => void
+  reporterId?: string
+  onReportCreated?: () => void
 }) {
   const [type, setType] = useState<ReportType>("flood")
   const [severity, setSeverity] = useState<Severity>("medium")
   const [submitted, setSubmitted] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [createdReportId, setCreatedReportId] = useState<string | null>(null)
   const [photoName, setPhotoName] = useState("")
+  const [photoDataUrl, setPhotoDataUrl] = useState("")
+
+  const [locationText, setLocationText] = useState("")
+  const [selectedDistrict, setSelectedDistrict] = useState("Bình Thạnh")
+  const [coords, setCoords] = useState<[number, number]>([106.7185, 10.7934])
+  const [locSuggestions, setLocSuggestions] = useState<RouteEndpoint[]>([])
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [locatingGps, setLocatingGps] = useState(false)
+  const [description, setDescription] = useState("")
+
   const closeRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   const successRef = useRef<HTMLDivElement>(null)
@@ -21,10 +85,99 @@ function ReportModal({
     onClose()
     window.setTimeout(() => {
       setSubmitted(false)
+      setSubmitting(false)
+      setCreatedReportId(null)
       setPhotoName("")
+      setPhotoDataUrl("")
+      setDescription("")
       setType("flood")
       setSeverity("medium")
+      setShowSuggestions(false)
     }, 250)
+  }
+
+  useEffect(() => {
+    if (!showSuggestions) return
+    const clean = locationText.trim()
+    if (!clean) {
+      setLocSuggestions([])
+      return
+    }
+    const instant = instantMatchHcmcPlaces(clean)
+    if (instant.length > 0) {
+      setLocSuggestions(instant)
+    }
+    if (clean.length < 2) return
+
+    const controller = new AbortController()
+    let active = true
+    const timer = window.setTimeout(async () => {
+      const results = await searchPlacesApi(clean, controller.signal)
+      if (active && !controller.signal.aborted) setLocSuggestions(results)
+    }, 70)
+    return () => {
+      active = false
+      controller.abort()
+      window.clearTimeout(timer)
+    }
+  }, [locationText, showSuggestions])
+
+  function handleUseGps() {
+    if (!navigator.geolocation) return
+    setLocatingGps(true)
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const lat = pos.coords.latitude
+        const lng = pos.coords.longitude
+        const geo = await reverseGeocodeApi(lat, lng)
+        setLocationText(
+          geo.district
+            ? `${geo.location}, ${geo.district}`
+            : geo.location,
+        )
+        setSelectedDistrict(geo.district || "TP.HCM")
+        setCoords([lng, lat])
+        setLocatingGps(false)
+        setShowSuggestions(false)
+      },
+      () => {
+        setLocatingGps(false)
+      },
+      { enableHighAccuracy: true, timeout: 6000 },
+    )
+  }
+
+  async function handlePhotoChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    if (!file) {
+      setPhotoName("")
+      setPhotoDataUrl("")
+      return
+    }
+    setPhotoName(file.name)
+    const dataUrl = await compressImageToDataUrl(file)
+    setPhotoDataUrl(dataUrl)
+  }
+
+  async function handleSubmit() {
+    setSubmitting(true)
+    const rawLoc = locationText.trim() || "Nguyễn Hữu Cảnh, Bình Thạnh"
+    const cleanLocation = rawLoc.split(/[·,]/)[0].trim() || rawLoc
+    const created = await createCitizenReport({
+      reportType: type,
+      severity,
+      photoUrl: photoDataUrl || photoName || undefined,
+      location: cleanLocation,
+      district: selectedDistrict,
+      description: description.trim() || undefined,
+      lat: coords[1],
+      lng: coords[0],
+      reporterId,
+    })
+    setCreatedReportId(created?.id ?? null)
+    setSubmitting(false)
+    setSubmitted(true)
+    if (created) onReportCreated?.()
   }
 
   const closeModalRef = useRef(closeModal)
@@ -108,11 +261,16 @@ function ReportModal({
             <span className="success-mark">
               <Icon name="check" size={30} />
             </span>
-            <span className="success-pill">Đã ghi nhận</span>
+            <span className="success-pill">
+              {createdReportId
+                ? `Đã ghi nhận · ${createdReportId}`
+                : "Đã ghi nhận"}
+            </span>
             <h2 id="report-title">Cảm ơn bạn đã bảo vệ cộng đồng</h2>
             <p id="report-description">
-              Báo cáo gần Cơ sở 1 đang được xác minh và sẽ giúp người đi sau
-              tránh rủi ro.
+              Báo cáo tại{" "}
+              <strong>{locationText.trim() || "khu vực bạn chọn"}</strong> đã
+              được gửi tới Trung tâm điều hành theo thời gian thực.
             </p>
             <button
               className="primary-modal-button"
@@ -131,23 +289,26 @@ function ReportModal({
               <div>
                 <h2 id="report-title">Bạn đang thấy gì?</h2>
                 <p className="modal-intro" id="report-description">
-                  Chỉ mất khoảng 10 giây. Đừng thao tác khi đang điều khiển
-                  phương tiện.
+                  Chọn vị trí, mức độ ngập và gửi ảnh để cảnh báo cho cộng đồng.
                 </p>
               </div>
             </div>
 
-            <div className="report-type-grid">
+            <div
+              aria-label="Loại sự cố"
+              className="report-type-grid"
+              role="group"
+            >
               <button
                 aria-pressed={type === "flood"}
                 className={type === "flood" ? "is-selected" : ""}
                 onClick={() => setType("flood")}
                 type="button"
               >
-                <span className="report-type-icon water-icon">
+                <span className="report-type-icon">
                   <Icon name="rain" size={24} />
                 </span>
-                <strong>Điểm ngập</strong>
+                <strong>Đường bị ngập</strong>
                 <small>Nước đang dâng trên đường</small>
               </button>
               <button
@@ -169,9 +330,9 @@ function ReportModal({
               <div className="severity-options">
                 {(
                   [
-                    ["low", "Nhẹ", "Dưới mắt cá"],
-                    ["medium", "Đáng chú ý", "Qua nửa bánh xe"],
-                    ["high", "Nguy hiểm", "Không thể đi qua"],
+                    ["low", "Nhẹ", "Dưới mắt cá (~12cm)"],
+                    ["medium", "Đáng chú ý", "Qua nửa bánh xe (~25cm)"],
+                    ["high", "Nguy hiểm", "Không thể đi qua (>40cm)"],
                   ] as [Severity, string, string][]
                 ).map(([id, title, caption]) => (
                   <button
@@ -181,7 +342,10 @@ function ReportModal({
                     onClick={() => setSeverity(id)}
                     type="button"
                   >
-                    <span aria-hidden="true" className={`severity-dot ${id}`} />
+                    <span
+                      aria-hidden="true"
+                      className={`severity-dot ${id}`}
+                    />
                     <span>
                       <strong>{title}</strong>
                       <small>{caption}</small>
@@ -191,44 +355,105 @@ function ReportModal({
               </div>
             </fieldset>
 
+            <div className="report-location-field">
+              <div className="report-location">
+                <Icon name="pin" size={18} />
+                <div className="report-location-input-wrap">
+                  <small>Vị trí hiện trường tại TP.HCM</small>
+                  <input
+                    aria-label="Nhập tên đường hoặc vị trí ngập"
+                    className="report-location-input"
+                    onChange={(e) => {
+                      setLocationText(e.target.value)
+                      setShowSuggestions(true)
+                    }}
+                    onFocus={() => setShowSuggestions(true)}
+                    placeholder="Nhập tên đường, giao lộ (VD: Nguyễn Hữu Cảnh, Bình Thạnh…)"
+                    type="text"
+                    value={locationText}
+                  />
+                </div>
+                <button
+                  className="gps-locate-btn"
+                  disabled={locatingGps}
+                  onClick={handleUseGps}
+                  title="Lấy tọa độ GPS hiện tại của bạn"
+                  type="button"
+                >
+                  <Icon name="location" size={15} />
+                  {locatingGps ? "Đang định vị…" : "GPS"}
+                </button>
+              </div>
+
+              {showSuggestions && locSuggestions.length > 0 && (
+                <ul className="search-suggestions report-loc-suggestions">
+                  {locSuggestions.map((place) => (
+                    <li key={`${place.label}-${place.coords.join(",")}`}>
+                      <button
+                        className="suggestion-item"
+                        onClick={() => {
+                          setLocationText(place.label)
+                          setSelectedDistrict(place.district || "TP.HCM")
+                          setCoords(place.coords)
+                          setShowSuggestions(false)
+                        }}
+                        type="button"
+                      >
+                        <Icon name="pin" size={14} />
+                        <span>{place.label}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            <label className="auth-field">
+              <span>Mô tả chi tiết hiện trường (tùy chọn)</span>
+              <input
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="VD: Nước ngập nửa bánh xe máy, xe chết máy nhiều…"
+                type="text"
+                value={description}
+              />
+            </label>
+
             <label className="photo-button">
-              <span className="photo-icon">
-                <Icon name="camera" size={21} />
-              </span>
+              {photoDataUrl ? (
+                <img
+                  alt="Xem trước ảnh hiện trường"
+                  className="photo-preview-thumb"
+                  src={photoDataUrl}
+                />
+              ) : (
+                <span className="photo-icon">
+                  <Icon name="camera" size={21} />
+                </span>
+              )}
               <span>
-                <strong>{photoName || "Thêm ảnh hiện trường"}</strong>
+                <strong>{photoName || "Thêm ảnh hiện trường thực tế"}</strong>
                 <small>
-                  {photoName
-                    ? "Ảnh đã sẵn sàng để gửi"
-                    : "Tùy chọn · AI sẽ hỗ trợ xác minh"}
+                  {photoDataUrl
+                    ? "Đã đính kèm ảnh thật · Trung tâm điều hành sẽ thấy ảnh này"
+                    : "Tùy chọn · AI sẽ phân tích mực nước từ ảnh"}
                 </small>
               </span>
               <Icon name={photoName ? "check" : "plus"} size={20} />
               <input
                 accept="image/*"
                 aria-label="Chọn ảnh hiện trường"
-                onChange={(event) =>
-                  setPhotoName(event.target.files?.[0]?.name || "")
-                }
+                onChange={handlePhotoChange}
                 type="file"
               />
             </label>
 
-            <div className="report-location">
-              <Icon name="pin" size={18} />
-              <span>
-                <small>Vị trí báo cáo</small>
-                <strong>105 Bà Huyện Thanh Quan, Quận 3</strong>
-              </span>
-              <span className="live-dot">Chính xác</span>
-            </div>
-
             <button
               className="primary-modal-button"
-              onClick={() => setSubmitted(true)}
+              disabled={submitting}
+              onClick={handleSubmit}
               type="button"
             >
-              Gửi báo cáo cộng đồng
+              {submitting ? "Đang gửi báo cáo..." : "Gửi báo cáo cộng đồng"}
               <Icon name="arrow" size={20} />
             </button>
           </>

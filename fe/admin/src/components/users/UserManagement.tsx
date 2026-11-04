@@ -33,8 +33,8 @@ function UserManagement({
           </span>
           <div>
             <span>Tổng người dùng</span>
-            <strong>2.486</strong>
-            <small>+126 trong tháng này</small>
+            <strong>{users.length}</strong>
+            <small>Từ bảng community_users (PostgreSQL)</small>
           </div>
         </div>
         <div className="user-summary-card">
@@ -43,7 +43,7 @@ function UserManagement({
           </span>
           <div>
             <span>Đang hoạt động</span>
-            <strong>{activeUsers + 2147}</strong>
+            <strong>{activeUsers}</strong>
             <small>86,5% tổng tài khoản</small>
           </div>
         </div>
@@ -53,7 +53,7 @@ function UserManagement({
           </span>
           <div>
             <span>Độ tin cậy cao</span>
-            <strong>{trustedUsers + 1732}</strong>
+            <strong>{trustedUsers}</strong>
             <small>Điểm tín nhiệm từ 85</small>
           </div>
         </div>
@@ -63,7 +63,7 @@ function UserManagement({
           </span>
           <div>
             <span>Cần xem xét</span>
-            <strong>{reviewUsers + 11}</strong>
+            <strong>{reviewUsers}</strong>
             <small>4 hồ sơ mới hôm nay</small>
           </div>
         </div>
@@ -196,7 +196,7 @@ function UserManagement({
         </div>
         <div className="table-pagination">
           <span>
-            Hiển thị {filtered.length} hồ sơ mẫu trong 2.486 tài khoản
+            Hiển thị {filtered.length} / {users.length} tài khoản từ PostgreSQL
           </span>
           <div>
             <Button variant="secondary" disabled>

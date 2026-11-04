@@ -1,9 +1,15 @@
 import { ArrowUpRight, CloudRain, Sparkles, Waves } from "lucide-react"
 import Heading from "@/components/ui/Heading"
-import { trends } from "@/data/trends"
+import type { TrendsMap } from "@/types"
 
-function TrendSummary({ range }: { range: keyof typeof trends }) {
-  const data = trends[range]
+function TrendSummary({
+  range,
+  trendsData,
+}: {
+  range: keyof TrendsMap
+  trendsData: TrendsMap
+}) {
+  const data = trendsData[range]
   const totalReports = data.reports.reduce((sum, value) => sum + value, 0)
   const peakRain = Math.max(...data.rain)
   const peakRainIndex = data.rain.indexOf(peakRain)

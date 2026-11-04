@@ -14,22 +14,30 @@ import {
   trustBands,
   verificationRate,
 } from "@/lib/analytics"
-import { trends } from "@/data/trends"
-import { mapPoints } from "@/data/mapPoints"
-import type { AreaAlert, CommunityUser, FloodReport } from "@/types"
+import type {
+  AreaAlert,
+  CommunityUser,
+  FloodReport,
+  MapPoint,
+  TrendsMap,
+} from "@/types"
 
 function AnalyticsPage({
   reports,
   alerts,
   users,
+  points,
+  trendsData,
   trendRange,
   setTrendRange,
 }: {
   reports: FloodReport[]
   alerts: AreaAlert[]
   users: CommunityUser[]
-  trendRange: keyof typeof trends
-  setTrendRange: (range: keyof typeof trends) => void
+  points: MapPoint[]
+  trendsData: TrendsMap
+  trendRange: keyof TrendsMap
+  setTrendRange: (range: keyof TrendsMap) => void
 }) {
   const counts = reportStatusCounts(reports)
   const averageTrust = users.length
@@ -96,8 +104,12 @@ function AnalyticsPage({
       </div>
 
       <div className="analytics-grid">
-        <TrendChart range={trendRange} setRange={setTrendRange} />
-        <TrendSummary range={trendRange} />
+        <TrendChart
+          range={trendRange}
+          setRange={setTrendRange}
+          trendsData={trendsData}
+        />
+        <TrendSummary range={trendRange} trendsData={trendsData} />
       </div>
 
       <div className="analytics-grid">
@@ -116,7 +128,7 @@ function AnalyticsPage({
       <div className="analytics-grid">
         <DistributionChart
           description="Phân bố mức độ trên toàn bộ điểm bản đồ vận hành."
-          items={mapPointBreakdown(mapPoints)}
+          items={mapPointBreakdown(points)}
           title="Điểm bản đồ theo mức độ"
         />
         <DistributionChart
@@ -133,7 +145,7 @@ function AnalyticsPage({
 
       <section className="panel contributors-panel">
         <SectionHeader
-          action={<StatusPill tone="safe">{users.length} hồ sơ mẫu</StatusPill>}
+          action={<StatusPill tone="safe">{users.length} tài khoản</StatusPill>}
           description="Xếp theo số báo cáo đã được xác minh."
           title="Đóng góp cộng đồng nổi bật"
         />

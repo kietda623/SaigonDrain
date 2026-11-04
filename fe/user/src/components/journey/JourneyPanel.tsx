@@ -1,7 +1,12 @@
 import { useEffect, useRef } from "react"
 import Icon from "@/components/ui/Icon"
-import { routes } from "@/data/mockData"
-import type { RouteId } from "@/types"
+import type {
+  ForecastSlot,
+  NavigationStep,
+  RouteId,
+  RouteItem,
+  SavedRoutePair,
+} from "@/types"
 import JourneyStatus from "@/components/journey/JourneyStatus"
 import ForecastTimeline from "@/components/journey/ForecastTimeline"
 import RouteOption from "@/components/journey/RouteOption"
@@ -18,6 +23,14 @@ function JourneyPanel({
   onStart,
   onReport,
   focusSection,
+  forecasts,
+  routesData,
+  navigationSteps,
+  canSaveRoute,
+  onSaveCurrentRoute,
+  savedRoutes,
+  onSelectSavedRoute,
+  onRemoveSavedRoute,
 }: {
   forecastIndex: number
   setForecastIndex: (index: number) => void
@@ -29,6 +42,14 @@ function JourneyPanel({
   onStart: () => void
   onReport: () => void
   focusSection?: "forecast" | "routes" | null
+  forecasts: readonly ForecastSlot[]
+  routesData: Record<RouteId, RouteItem>
+  navigationSteps: readonly NavigationStep[]
+  canSaveRoute?: boolean
+  onSaveCurrentRoute?: () => void
+  savedRoutes?: readonly SavedRoutePair[]
+  onSelectSavedRoute?: (pair: SavedRoutePair) => void
+  onRemoveSavedRoute?: (id: string) => void
 }) {
   const forecastRef = useRef<HTMLDivElement>(null)
   const routesRef = useRef<HTMLDivElement>(null)
@@ -74,19 +95,20 @@ function JourneyPanel({
             </span>
             <strong>Đang dẫn đường</strong>
             <small>
-              còn {routes[selectedRoute].time} ·{" "}
-              {routes[selectedRoute].distance}
+              còn {routesData[selectedRoute].time} ·{" "}
+              {routesData[selectedRoute].distance}
             </small>
           </div>
         )}
 
-        <JourneyStatus forecastIndex={forecastIndex} />
+        <JourneyStatus forecastIndex={forecastIndex} slots={forecasts} />
 
         <div className="panel-scroll">
           <div ref={forecastRef}>
             <ForecastTimeline
               value={forecastIndex}
               onChange={setForecastIndex}
+              slots={forecasts}
             />
           </div>
 
@@ -96,20 +118,67 @@ function JourneyPanel({
                 <h2>Chọn tuyến an toàn</h2>
                 <p>So sánh thời gian và mức độ ngập trên đường.</p>
               </div>
-              <Icon name="route" size={22} />
+              {canSaveRoute && onSaveCurrentRoute ? (
+                <button
+                  className="save-route-btn"
+                  onClick={onSaveCurrentRoute}
+                  title="Lưu lộ trình này vào mục đã lưu"
+                  type="button"
+                >
+                  <Icon name="pin" size={16} />
+                  <span>Lưu lộ trình</span>
+                </button>
+              ) : (
+                <Icon name="route" size={22} />
+              )}
             </div>
             <div className="route-options">
               <RouteOption
                 id="safe"
                 onSelect={setSelectedRoute}
+                routeItem={routesData.safe}
                 selected={selectedRoute === "safe"}
               />
               <RouteOption
                 id="balanced"
                 onSelect={setSelectedRoute}
+                routeItem={routesData.balanced}
                 selected={selectedRoute === "balanced"}
               />
             </div>
+
+            {savedRoutes && savedRoutes.length > 0 && (
+              <div className="saved-routes-box">
+                <div className="saved-routes-header">
+                  <Icon name="pin" size={15} />
+                  <span>Lộ trình quen thuộc đã lưu ({savedRoutes.length})</span>
+                </div>
+                <div className="saved-routes-list">
+                  {savedRoutes.map((pair) => (
+                    <div className="saved-route-item" key={pair.id}>
+                      <button
+                        className="saved-route-select"
+                        onClick={() => onSelectSavedRoute?.(pair)}
+                        type="button"
+                      >
+                        <strong>{pair.origin.label}</strong>
+                        <small>→ {pair.destination.label}</small>
+                      </button>
+                      {onRemoveSavedRoute && (
+                        <button
+                          aria-label="Xóa lộ trình đã lưu"
+                          className="saved-route-delete"
+                          onClick={() => onRemoveSavedRoute(pair.id)}
+                          type="button"
+                        >
+                          <Icon name="close" size={14} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className={`route-explanation ${selectedRoute}`}>
@@ -119,10 +188,14 @@ function JourneyPanel({
                 size={19}
               />
             </span>
-            <p>{routes[selectedRoute].detail}</p>
+            <p>{routesData[selectedRoute].detail}</p>
           </div>
 
-          <TurnByTurnDirections />
+          <TurnByTurnDirections
+            distance={routesData[selectedRoute].distance}
+            durationText={routesData[selectedRoute].time}
+            steps={navigationSteps}
+          />
         </div>
       </div>
 
@@ -139,7 +212,9 @@ function JourneyPanel({
               {isNavigating ? "Đang dẫn đường" : "Bắt đầu với"}
             </small>
             <strong>
-              {isNavigating ? "Kết thúc hành trình" : routes[selectedRoute].name}
+              {isNavigating
+                ? "Kết thúc hành trình"
+                : routesData[selectedRoute].name}
             </strong>
           </span>
           <Icon name={isNavigating ? "close" : "arrow"} size={21} />

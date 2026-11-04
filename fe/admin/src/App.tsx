@@ -13,24 +13,53 @@ import ReportReviewModal from "@/components/reports/ReportReviewModal"
 import AlertModal from "@/components/alerts/AlertModal"
 import ConfirmDialog from "@/components/ui/ConfirmDialog"
 import UserDetailModal from "@/components/users/UserDetailModal"
-import { reportsSeed } from "@/data/reports"
-import { alertsSeed } from "@/data/alerts"
-import { usersSeed } from "@/data/users"
-import { trends } from "@/data/trends"
+import {
+  approveReportApi,
+  createAlertApi,
+  endAlertApi,
+  fetchAdminInitialData,
+  fetchCurrentWeatherApi,
+  fetchUsersCsvBlob,
+  rejectReportApi,
+  subscribeAdminRealtime,
+  syncWeatherForecastsApi,
+  updateAlertApi,
+  updateUserStatusApi,
+} from "@/lib/api"
 import type {
   AlertDraft,
   AreaAlert,
+  CommunityUser,
   FloodReport,
   MapLayer,
   MapPoint,
   Page,
   Severity,
+  TrendsMap,
   UserStatus,
+  WeatherSnapshot,
 } from "@/types"
 
+const emptyTrendItem = {
+  labels: ["00:00"],
+  reports: [0],
+  rain: [0],
+  insight: "Đang tải dữ liệu xu hướng từ cơ sở dữ liệu…",
+}
+
+const emptyTrends: TrendsMap = {
+  "24h": emptyTrendItem,
+  "7d": emptyTrendItem,
+  "30d": emptyTrendItem,
+}
+
 export default function App() {
-  const [reports, setReports] = useState(reportsSeed)
-  const [alerts, setAlerts] = useState(alertsSeed)
+  const [reports, setReports] = useState<FloodReport[]>([])
+  const [alerts, setAlerts] = useState<AreaAlert[]>([])
+  const [mapPoints, setMapPoints] = useState<MapPoint[]>([])
+  const [trendsData, setTrendsData] = useState<TrendsMap>(emptyTrends)
+  const [weather, setWeather] = useState<WeatherSnapshot | null>(null)
+  const [isLiveBackend, setIsLiveBackend] = useState(false)
   const [selectedMapPoint, setSelectedMapPoint] = useState<string | null>("p1")
   const [layers, setLayers] = useState<MapLayer[]>([
     "flood",
@@ -39,7 +68,7 @@ export default function App() {
     "history",
   ])
   const [severityFilter, setSeverityFilter] = useState<"all" | Severity>("all")
-  const [trendRange, setTrendRange] = useState<keyof typeof trends>("24h")
+  const [trendRange, setTrendRange] = useState<keyof TrendsMap>("24h")
   const [reviewing, setReviewing] = useState<FloodReport | null>(null)
   const [rejecting, setRejecting] = useState<FloodReport | null>(null)
   const [alertModal, setAlertModal] = useState<{
@@ -50,8 +79,108 @@ export default function App() {
   const [toast, setToast] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [page, setPage] = useState<Page>("overview")
-  const [users, setUsers] = useState(usersSeed)
+  const [users, setUsers] = useState<CommunityUser[]>([])
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
+
+  useEffect(() => {
+    let active = true
+    async function loadInitial() {
+      const data = await fetchAdminInitialData()
+      if (!active || !data.live) return
+      if (data.reports) setReports(data.reports)
+      if (data.alerts) setAlerts(data.alerts)
+      if (data.mapPoints) setMapPoints(data.mapPoints)
+      if (data.users) setUsers(data.users)
+      if (data.trends) setTrendsData(data.trends)
+      if (data.weather) setWeather(data.weather)
+      setIsLiveBackend(true)
+    }
+    loadInitial()
+
+    const unsubscribe = subscribeAdminRealtime({
+      onReportCreated: ({ report, mapPoint }) => {
+        if (!active) return
+        setReports((current) =>
+          current.some((r) => r.id === report.id)
+            ? current
+            : [report, ...current],
+        )
+        if (mapPoint) {
+          setMapPoints((current) =>
+            current.some((pt) => pt.id === mapPoint.id)
+              ? current
+              : [...current, mapPoint],
+          )
+        }
+        setToast(
+          `Realtime: Báo cáo mới ${report.id} tại ${report.location} vừa được gửi.`,
+        )
+      },
+      onReportApproved: ({ report, updatedMapPoint }) => {
+        if (!active) return
+        setReports((current) =>
+          current.map((item) => (item.id === report.id ? report : item)),
+        )
+        if (updatedMapPoint) {
+          setMapPoints((current) =>
+            current.map((pt) =>
+              pt.linkedReportId === report.id ? updatedMapPoint : pt,
+            ),
+          )
+        }
+      },
+      onReportRejected: ({ report }) => {
+        if (!active) return
+        setReports((current) =>
+          current.map((item) => (item.id === report.id ? report : item)),
+        )
+      },
+      onAlertCreated: (alert) => {
+        if (!active) return
+        setAlerts((current) =>
+          current.some((a) => a.id === alert.id)
+            ? current
+            : [alert, ...current],
+        )
+      },
+      onAlertUpdated: (alert) => {
+        if (!active) return
+        setAlerts((current) =>
+          current.map((a) => (a.id === alert.id ? alert : a)),
+        )
+      },
+      onAlertEnded: (alert) => {
+        if (!active) return
+        setAlerts((current) =>
+          current.map((a) => (a.id === alert.id ? alert : a)),
+        )
+      },
+      onWeatherUpdated: ({ snapshot }) => {
+        if (!active) return
+        if (snapshot) setWeather(snapshot)
+      },
+      onUserUpdated: ({ action, user }) => {
+        if (!active || !user) return
+        setUsers((current) => {
+          const exists = current.some((u) => u.id === user.id)
+          if (exists) {
+            return current.map((u) => (u.id === user.id ? user : u))
+          }
+          return [user, ...current]
+        })
+        if (action === "registered") {
+          setToast(
+            `Realtime: Người dùng mới ${user.name} (${user.district}) vừa đăng ký tài khoản!`,
+          )
+        }
+      },
+    })
+
+    return () => {
+      active = false
+      unsubscribe()
+    }
+  }, [])
 
   useEffect(() => {
     if (!toast) return
@@ -86,43 +215,72 @@ export default function App() {
     }
   }
 
-  const approveReport = () => {
+  const handleSyncWeather = async () => {
+    await syncWeatherForecastsApi()
+    const freshWeather = await fetchCurrentWeatherApi()
+    if (freshWeather) {
+      setWeather(freshWeather)
+      setToast(
+        `Đã đồng bộ thời tiết từ Open-Meteo: ${freshWeather.weatherCondition} · ${Math.round(freshWeather.temperatureC)}°C.`,
+      )
+    }
+  }
+
+  const approveReport = async () => {
     if (!reviewing) return
+    const targetId = reviewing.id
+    const apiResult = await approveReportApi(targetId)
     setReports((current) =>
       current.map((report) =>
-        report.id === reviewing.id ? { ...report, status: "verified" } : report,
+        report.id === targetId
+          ? apiResult?.report ?? { ...report, status: "verified" }
+          : report,
+      ),
+    )
+    setMapPoints((current) =>
+      current.map((point) =>
+        point.linkedReportId === targetId
+          ? apiResult?.updatedMapPoint ?? { ...point, type: "flood" }
+          : point,
       ),
     )
     setReviewing(null)
-    setToast(`Đã xác nhận báo cáo ${reviewing.id} và cập nhật bản đồ.`)
+    setToast(`Đã xác nhận báo cáo ${targetId} và cập nhật bản đồ.`)
   }
 
-  const rejectReport = (reason?: string) => {
+  const rejectReport = async (reason?: string) => {
     if (!rejecting) return
+    const targetId = rejecting.id
+    const apiResult = await rejectReportApi(targetId, reason)
     setReports((current) =>
       current.map((report) =>
-        report.id === rejecting.id ? { ...report, status: "rejected" } : report,
+        report.id === targetId
+          ? apiResult?.report ?? { ...report, status: "rejected" }
+          : report,
       ),
     )
     setRejecting(null)
     setReviewing(null)
     setToast(
-      `Đã từ chối báo cáo ${rejecting.id}${reason ? `: ${reason}` : ""}.`,
+      `Đã từ chối báo cáo ${targetId}${reason ? `: ${reason}` : ""}.`,
     )
   }
 
-  const saveAlert = (draft: AlertDraft) => {
+  const saveAlert = async (draft: AlertDraft) => {
     if (alertModal?.mode === "edit" && alertModal.alert) {
+      const targetId = alertModal.alert.id
+      const updated = await updateAlertApi(targetId, draft)
       setAlerts((current) =>
         current.map((alert) =>
-          alert.id === alertModal.alert?.id ? { ...alert, ...draft } : alert,
+          alert.id === targetId ? (updated ?? { ...alert, ...draft }) : alert,
         ),
       )
-      setToast(`Đã cập nhật cảnh báo ${alertModal.alert.id}.`)
+      setToast(`Đã cập nhật cảnh báo ${targetId}.`)
     } else {
+      const created = await createAlertApi(draft)
       const nextNumber = 190 + alerts.length
       setAlerts((current) => [
-        {
+        created ?? {
           id: `AL-0${nextNumber}`,
           ...draft,
           startedAt: "18:49",
@@ -136,20 +294,36 @@ export default function App() {
     setAlertModal(null)
   }
 
-  const endAlert = () => {
+  const endAlert = async () => {
     if (!endingAlert) return
+    const targetId = endingAlert.id
+    const ended = await endAlertApi(targetId)
     setAlerts((current) =>
       current.map((alert) =>
-        alert.id === endingAlert.id ? { ...alert, status: "ended" } : alert,
+        alert.id === targetId
+          ? (ended ?? { ...alert, status: "ended" })
+          : alert,
       ),
     )
-    setToast(`Đã kết thúc cảnh báo ${endingAlert.id}.`)
+    setToast(`Đã kết thúc cảnh báo ${targetId}.`)
     setEndingAlert(null)
   }
 
   const selectedUser = users.find((user) => user.id === selectedUserId) ?? null
 
-  const exportUsers = () => {
+  const exportUsers = async () => {
+    const backendBlob = await fetchUsersCsvBlob()
+    if (backendBlob) {
+      const url = URL.createObjectURL(backendBlob)
+      const link = document.createElement("a")
+      link.href = url
+      link.download = "saigondrain-nguoi-dung.csv"
+      link.click()
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+      setToast("Đã xuất danh sách người dùng từ Backend ra tệp CSV.")
+      return
+    }
+
     const statusLabel: Record<UserStatus, string> = {
       active: "Hoạt động",
       review: "Cần xem xét",
@@ -196,19 +370,21 @@ export default function App() {
     setToast("Đã xuất danh sách người dùng ra tệp CSV.")
   }
 
-  const updateUserStatus = (status: UserStatus) => {
+  const updateUserStatus = async (status: UserStatus) => {
     if (!selectedUser) return
+    const targetId = selectedUser.id
+    const updatedUser = await updateUserStatusApi(targetId, status)
     setUsers((current) =>
       current.map((user) =>
-        user.id === selectedUser.id ? { ...user, status } : user,
+        user.id === targetId ? (updatedUser ?? { ...user, status }) : user,
       ),
     )
     setToast(
       status === "blocked"
-        ? `Đã khóa tài khoản ${selectedUser.id}.`
+        ? `Đã khóa tài khoản ${targetId}.`
         : status === "review"
-          ? `Đã chuyển ${selectedUser.id} vào danh sách xem xét.`
-          : `Đã mở khóa tài khoản ${selectedUser.id}.`,
+          ? `Đã chuyển ${targetId} vào danh sách xem xét.`
+          : `Đã mở khóa tài khoản ${targetId}.`,
     )
     setSelectedUserId(null)
   }
@@ -228,7 +404,9 @@ export default function App() {
           onCreateAlert={() => setAlertModal({ mode: "create" })}
           onExportUsers={exportUsers}
           onOpenMenu={() => setSidebarOpen(true)}
+          onSyncWeather={handleSyncWeather}
           page={page}
+          weather={weather}
         />
 
         <div className="content">
@@ -241,6 +419,7 @@ export default function App() {
               onNavigate={navigate}
               onReview={setReviewing}
               onSelectPoint={selectMapPoint}
+              points={mapPoints}
               reports={reports}
               selectedMapPoint={selectedMapPoint}
               setLayers={setLayers}
@@ -248,12 +427,15 @@ export default function App() {
               setTrendRange={setTrendRange}
               severityFilter={severityFilter}
               trendRange={trendRange}
+              trendsData={trendsData}
+              weather={weather}
             />
           )}
           {page === "map" && (
             <MapPage
               layers={layers}
               onSelectPoint={selectMapPoint}
+              points={mapPoints}
               reports={reports}
               selectedMapPoint={selectedMapPoint}
               setLayers={setLayers}
@@ -280,16 +462,22 @@ export default function App() {
           {page === "analytics" && (
             <AnalyticsPage
               alerts={alerts}
+              points={mapPoints}
               reports={reports}
               setTrendRange={setTrendRange}
               trendRange={trendRange}
+              trendsData={trendsData}
               users={users}
             />
           )}
 
           <footer className="page-footer">
             <span>SaigonDrain AI · Trung tâm điều hành đô thị thông minh</span>
-            <span>Dữ liệu mô phỏng cho Hackathon 2025</span>
+            <span>
+              {isLiveBackend
+                ? "Đã kết nối Backend API & Open-Meteo"
+                : "Dữ liệu mô phỏng cho Hackathon 2025"}
+            </span>
           </footer>
         </div>
       </main>

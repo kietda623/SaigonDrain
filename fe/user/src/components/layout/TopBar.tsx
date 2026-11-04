@@ -1,38 +1,114 @@
+import { useEffect, useState } from "react"
 import Brand from "@/components/layout/Brand"
 import Icon from "@/components/ui/Icon"
+import type { CommunityUserProfile, WeatherSnapshot } from "@/types"
 
-function TopBar() {
+function formatVietnamClock(date = new Date()): string {
+  return new Intl.DateTimeFormat("vi-VN", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date)
+}
+
+function TopBar({
+  weather,
+  onSyncWeather,
+  currentUser,
+  onOpenAuth,
+  alertCount = 0,
+  onOpenAlerts,
+  onOpenGuide,
+}: {
+  weather?: WeatherSnapshot | null
+  onSyncWeather?: () => void
+  currentUser?: CommunityUserProfile | null
+  onOpenAuth?: () => void
+  alertCount?: number
+  onOpenAlerts?: () => void
+  onOpenGuide?: () => void
+}) {
+  const [vnTime, setVnTime] = useState(() => formatVietnamClock())
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setVnTime(formatVietnamClock())
+    }, 30_000)
+    return () => window.clearInterval(timer)
+  }, [])
+
+  const weatherLabel = weather
+    ? `${weather.weatherCondition} · ${Math.round(weather.temperatureC)}°C`
+    : "Mưa lớn · 27°C"
+
   return (
     <header className="top-bar">
       <Brand />
       <div className="top-bar-status">
         <span className="tracking-status">
           <i />
-          Đang theo dõi TP.HCM
+          Đang theo dõi TP.HCM · {vnTime} (GMT+7)
         </span>
-        <span className="weather-chip">
+        <button
+          aria-label="Cập nhật thời tiết thực tế từ Open-Meteo"
+          className="weather-chip"
+          onClick={onSyncWeather}
+          title="Nhấn để đồng bộ thời tiết thực tế (Open-Meteo API)"
+          type="button"
+        >
           <Icon name="rain" size={16} />
-          Mưa lớn · 27°C
-        </span>
+          {weatherLabel}
+        </button>
       </div>
       <div className="top-bar-actions">
         <button
-          aria-label="Trợ giúp sử dụng bản đồ"
+          aria-label="Hướng dẫn di chuyển an toàn mùa ngập"
           className="icon-button header-action"
+          onClick={onOpenGuide}
+          title="Cẩm nang di chuyển an toàn mùa mưa ngập"
           type="button"
         >
           <Icon name="help" size={20} />
         </button>
         <button
-          aria-label="Thông báo, có 2 cảnh báo mới"
-          className="icon-button header-action has-dot"
+          aria-label={`Cảnh báo khu vực, có ${alertCount} cảnh báo đang hiệu lực`}
+          className={`icon-button header-action ${alertCount > 0 ? "has-dot" : ""}`}
+          onClick={onOpenAlerts}
+          title={`Xem ${alertCount} cảnh báo khu vực từ Trung tâm điều hành`}
           type="button"
         >
           <Icon name="bell" size={20} />
-          <span aria-hidden="true" className="notification-dot" />
+          {alertCount > 0 && (
+            <span aria-hidden="true" className="notification-dot" />
+          )}
         </button>
-        <button aria-label="Mở tài khoản" className="user-button" type="button">
-          <Icon name="user" size={19} />
+        <button
+          aria-label={
+            currentUser
+              ? `Tài khoản ${currentUser.name}`
+              : "Đăng nhập hoặc Đăng ký tài khoản"
+          }
+          className={`user-button ${currentUser ? "is-logged-in" : "is-guest"}`}
+          onClick={onOpenAuth}
+          title={
+            currentUser
+              ? `${currentUser.name} (${currentUser.district})`
+              : "Nhấn để Đăng nhập / Đăng ký"
+          }
+          type="button"
+        >
+          {currentUser ? (
+            <>
+              <span className="user-chip-initials">{currentUser.initials}</span>
+              <span className="user-chip-name">{currentUser.name}</span>
+            </>
+          ) : (
+            <>
+              <Icon name="user" size={17} />
+              <span className="user-chip-name">Đăng nhập</span>
+            </>
+          )}
         </button>
       </div>
     </header>

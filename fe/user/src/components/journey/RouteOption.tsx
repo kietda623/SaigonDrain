@@ -1,17 +1,18 @@
 import Icon from "@/components/ui/Icon"
-import { routes } from "@/data/mockData"
-import type { RouteId } from "@/types"
+import type { RouteId, RouteItem } from "@/types"
 
 function RouteOption({
   id,
   selected,
   onSelect,
+  routeItem,
 }: {
   id: RouteId
   selected: boolean
   onSelect: (id: RouteId) => void
+  routeItem: RouteItem
 }) {
-  const item = routes[id]
+  const item = routeItem
 
   return (
     <button

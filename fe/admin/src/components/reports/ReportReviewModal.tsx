@@ -26,7 +26,7 @@ function ReportReviewModal({
     >
       <div className="review-grid">
         <div className="review-media">
-          <ReportVisual type={report.visual} large />
+          <ReportVisual type={report.visual} large photoUrl={report.photoUrl} />
           <div className="image-badge">
             <Sparkles size={14} /> AI đã phân tích ảnh
           </div>

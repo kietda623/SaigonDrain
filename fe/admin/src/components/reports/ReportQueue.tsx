@@ -33,7 +33,7 @@ function ReportQueue({
               onClick={() => onReview(report)}
               type="button"
             >
-              <ReportVisual type={report.visual} />
+              <ReportVisual type={report.visual} photoUrl={report.photoUrl} />
               <div className="report-info">
                 <div className="report-title-row">
                   <strong>{report.location}</strong>

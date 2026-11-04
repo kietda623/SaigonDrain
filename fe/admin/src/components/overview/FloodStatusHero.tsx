@@ -2,24 +2,37 @@ import { BellRing, CloudRain, Map, TriangleAlert } from "lucide-react"
 import Button from "@/components/ui/Button"
 import StatusPill from "@/components/ui/StatusPill"
 import WaterGauge from "@/components/ui/WaterGauge"
+import type { WeatherSnapshot } from "@/types"
 
 function FloodStatusHero({
   pendingCount,
   activeAlertCount,
   onViewMap,
   onViewAlerts,
+  weather,
 }: {
   pendingCount: number
   activeAlertCount: number
   onViewMap: () => void
   onViewAlerts: () => void
+  weather?: WeatherSnapshot | null
 }) {
+  const rainValue =
+    weather && weather.currentRainMm > 0
+      ? Math.round(weather.currentRainMm)
+      : 34
+  const riskLabel = weather?.floodRiskLevel
+    ? `Nguy cơ ${weather.floodRiskLevel.toLowerCase()}`
+    : "Nguy cơ cao"
+
   return (
     <section className="flood-hero">
       <div className="hero-copy">
         <span className="hero-eyebrow">
           <CloudRain size={16} />
-          Cập nhật lúc 18:48 · Thứ Bảy 24/05
+          {weather
+            ? `Đồng bộ trực tiếp (${weather.provider}) · Ẩm ${weather.humidityPercent}%`
+            : "Cập nhật lúc 18:48 · Thứ Bảy 24/05"}
         </span>
         <h2 className="hero-title">Mưa lớn đang mở rộng về phía Đông thành phố</h2>
         <p className="hero-sub">
@@ -53,12 +66,12 @@ function FloodStatusHero({
           <div>
             <small>Lượng mưa 30 phút</small>
             <strong>
-              34 <span>mm</span>
+              {rainValue} <span>mm</span>
             </strong>
           </div>
-          <StatusPill tone="watch">Nguy cơ cao</StatusPill>
+          <StatusPill tone="watch">{riskLabel}</StatusPill>
         </div>
-        <WaterGauge tone={1} value={34} />
+        <WaterGauge tone={1} value={rainValue} />
         <p className="hero-gauge-note">
           Dự kiến đạt đỉnh 51 mm lúc 19:30 trước khi giảm dần sau 20:00.
         </p>

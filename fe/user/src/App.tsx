@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import BottomNav from "@/components/layout/BottomNav"
 import TopBar from "@/components/layout/TopBar"
+import NotificationsModal from "@/components/layout/NotificationsModal"
 import Icon from "@/components/ui/Icon"
 import WaterGauge from "@/components/ui/WaterGauge"
 import MapCanvas from "@/components/map/MapCanvas"
@@ -8,19 +9,177 @@ import MapLegend from "@/components/map/MapLegend"
 import RouteSearch from "@/components/journey/RouteSearch"
 import JourneyPanel from "@/components/journey/JourneyPanel"
 import ReportModal from "@/components/report/ReportModal"
-import { forecastSlots } from "@/data/mockData"
-import type { AppTab, RouteId } from "@/types"
+import AuthModal from "@/components/auth/AuthModal"
+import {
+  EMPTY_ROUTES,
+  fetchActiveAlertsApi,
+  fetchCurrentWeather,
+  fetchForecastSlots,
+  fetchJourneyRoutes,
+  fetchMapPointsApi,
+  getSavedAuthUser,
+  getSavedRoutes,
+  removeSavedRoutePair,
+  saveAuthSession,
+  saveRoutePair,
+  subscribeUserRealtime,
+  syncWeatherForecasts,
+} from "@/lib/api"
+import type {
+  AppTab,
+  AreaAlertItem,
+  CommunityUserProfile,
+  ForecastSlot,
+  MapFloodPoint,
+  NavigationStep,
+  RouteEndpoint,
+  RouteId,
+  RouteItem,
+  SavedRoutePair,
+  WeatherSnapshot,
+} from "@/types"
+
+const EMPTY_FORECAST: ForecastSlot = {
+  id: "now",
+  label: "Hiện tại",
+  rain: "0 mm",
+  risk: "Thấp",
+  zone: 0,
+}
 
 function App() {
   const [forecastIndex, setForecastIndex] = useState(1)
   const [selectedRoute, setSelectedRoute] = useState<RouteId>("safe")
   const [reportOpen, setReportOpen] = useState(false)
+  const [authOpen, setAuthOpen] = useState(false)
+  const [notifOpen, setNotifOpen] = useState(false)
+  const [notifMode, setNotifMode] = useState<"alerts" | "guide">("alerts")
+  const [currentUser, setCurrentUser] = useState<CommunityUserProfile | null>(
+    () => getSavedAuthUser(),
+  )
+  const [savedRoutes, setSavedRoutes] = useState<SavedRoutePair[]>(() =>
+    getSavedRoutes(),
+  )
+  const [activeAlerts, setActiveAlerts] = useState<AreaAlertItem[]>([])
   const [panelExpanded, setPanelExpanded] = useState(false)
   const [isNavigating, setIsNavigating] = useState(false)
   const [activeTab, setActiveTab] = useState<AppTab>("map")
 
-  const forecast = forecastSlots[forecastIndex]
-  const rainValue = Number.parseInt(forecast.rain, 10)
+  const [origin, setOrigin] = useState<RouteEndpoint | null>(null)
+  const [destination, setDestination] = useState<RouteEndpoint | null>(null)
+  const [floodPoints, setFloodPoints] = useState<MapFloodPoint[]>([])
+
+  const [forecasts, setForecasts] = useState<ForecastSlot[]>([])
+  const [routesData, setRoutesData] = useState<Record<RouteId, RouteItem>>({
+    safe: { ...EMPTY_ROUTES.safe },
+    balanced: { ...EMPTY_ROUTES.balanced },
+  })
+  const [navigationSteps, setNavigationSteps] = useState<NavigationStep[]>([])
+  const [weather, setWeather] = useState<WeatherSnapshot | null>(null)
+  const [isLiveBackend, setIsLiveBackend] = useState(false)
+
+  useEffect(() => {
+    let active = true
+    async function loadFromBackend() {
+      const [weatherSnap, forecastRes, pointsRes, alertsRes] =
+        await Promise.all([
+          fetchCurrentWeather(),
+          fetchForecastSlots(),
+          fetchMapPointsApi(),
+          fetchActiveAlertsApi(),
+        ])
+      if (!active) return
+      if (weatherSnap) setWeather(weatherSnap)
+      if (forecastRes.slots.length > 0) setForecasts(forecastRes.slots)
+      if (pointsRes.length > 0) setFloodPoints(pointsRes)
+      setActiveAlerts(alertsRes)
+      setIsLiveBackend(Boolean(weatherSnap) || forecastRes.live)
+
+      if (origin && destination) {
+        const routesRes = await fetchJourneyRoutes(
+          origin.coords,
+          destination.coords,
+        )
+        if (!active) return
+        setRoutesData(routesRes.routes)
+        setNavigationSteps(routesRes.navigationSteps)
+      } else {
+        setRoutesData({
+          safe: { ...EMPTY_ROUTES.safe },
+          balanced: { ...EMPTY_ROUTES.balanced },
+        })
+        setNavigationSteps([])
+      }
+    }
+    loadFromBackend()
+
+    const unsubscribe = subscribeUserRealtime({
+      onWeatherUpdated: ({ snapshot, slots }) => {
+        if (!active) return
+        if (snapshot) setWeather(snapshot)
+        if (slots && slots.length > 0) setForecasts(slots)
+        setIsLiveBackend(true)
+      },
+      onRouteRecomputeNeeded: async () => {
+        const pointsRes = await fetchMapPointsApi()
+        if (!active) return
+        if (pointsRes.length > 0) setFloodPoints(pointsRes)
+        if (origin && destination) {
+          const routesRes = await fetchJourneyRoutes(
+            origin.coords,
+            destination.coords,
+          )
+          if (!active) return
+          setRoutesData(routesRes.routes)
+          setNavigationSteps(routesRes.navigationSteps)
+        }
+      },
+      onAlertsChanged: async () => {
+        const alertsRes = await fetchActiveAlertsApi()
+        if (!active) return
+        setActiveAlerts(alertsRes)
+      },
+    })
+
+    return () => {
+      active = false
+      unsubscribe()
+    }
+  }, [origin, destination])
+
+  async function handleSyncWeather() {
+    const [weatherSnap, syncedSlots] = await Promise.all([
+      fetchCurrentWeather(),
+      syncWeatherForecasts(),
+    ])
+    if (weatherSnap) setWeather(weatherSnap)
+    if (syncedSlots && syncedSlots.length > 0) setForecasts(syncedSlots)
+  }
+
+  function handleSwapEndpoints() {
+    const prevOrigin = origin
+    setOrigin(destination)
+    setDestination(prevOrigin)
+  }
+
+  function handleSaveCurrentRoute() {
+    if (!origin || !destination) return
+    const next = saveRoutePair(origin, destination)
+    setSavedRoutes(next)
+  }
+
+  function handleSelectSavedRoute(pair: SavedRoutePair) {
+    setOrigin(pair.origin)
+    setDestination(pair.destination)
+  }
+
+  function handleRemoveSavedRoute(id: string) {
+    const next = removeSavedRoutePair(id)
+    setSavedRoutes(next)
+  }
+
+  const forecast = forecasts[forecastIndex] ?? forecasts[0] ?? EMPTY_FORECAST
+  const rainValue = Number.parseInt(forecast.rain, 10) || 0
 
   useEffect(() => {
     if (!reportOpen) return
@@ -42,6 +201,8 @@ function App() {
     setPanelExpanded(tab !== "map")
   }
 
+  const currentStep = navigationSteps[0]
+
   return (
     <main
       className={`app-shell ${
@@ -49,29 +210,69 @@ function App() {
       } ${isNavigating ? "is-navigating" : ""}`}
     >
       <h1 className="sr-only">SaigonDrain AI — Bản đồ an toàn TP.HCM</h1>
-      <TopBar />
+      <TopBar
+        alertCount={activeAlerts.length}
+        currentUser={currentUser}
+        onOpenAlerts={() => {
+          setNotifMode("alerts")
+          setNotifOpen(true)
+        }}
+        onOpenAuth={() => setAuthOpen(true)}
+        onOpenGuide={() => {
+          setNotifMode("guide")
+          setNotifOpen(true)
+        }}
+        onSyncWeather={handleSyncWeather}
+        weather={weather}
+      />
 
       <div className="desktop-sidebar">
-        <RouteSearch />
+        <RouteSearch
+          destination={destination}
+          onSelectDestination={setDestination}
+          onSelectOrigin={setOrigin}
+          onSwap={handleSwapEndpoints}
+          origin={origin}
+        />
         <JourneyPanel
+          canSaveRoute={Boolean(origin && destination)}
           expanded
           forecastIndex={forecastIndex}
+          forecasts={forecasts}
+          isNavigating={isNavigating}
+          navigationSteps={navigationSteps}
+          onRemoveSavedRoute={handleRemoveSavedRoute}
+          onReport={() => setReportOpen(true)}
+          onSaveCurrentRoute={handleSaveCurrentRoute}
+          onSelectSavedRoute={handleSelectSavedRoute}
+          onStart={toggleNavigation}
+          routesData={routesData}
+          savedRoutes={savedRoutes}
           selectedRoute={selectedRoute}
           setExpanded={() => undefined}
           setForecastIndex={setForecastIndex}
           setSelectedRoute={setSelectedRoute}
-          isNavigating={isNavigating}
-          onStart={toggleNavigation}
-          onReport={() => setReportOpen(true)}
         />
       </div>
 
       <section className="map-stage">
-        <MapCanvas route={selectedRoute} />
+        <MapCanvas
+          destination={destination}
+          floodPoints={floodPoints}
+          origin={origin}
+          route={selectedRoute}
+          routesData={routesData}
+        />
 
         <div className="map-top-stack">
           <div className="mobile-search">
-            <RouteSearch />
+            <RouteSearch
+              destination={destination}
+              onSelectDestination={setDestination}
+              onSelectOrigin={setOrigin}
+              onSwap={handleSwapEndpoints}
+              origin={origin}
+            />
           </div>
 
           {!isNavigating && (
@@ -104,14 +305,16 @@ function App() {
           )}
         </div>
 
-        {isNavigating && (
+        {isNavigating && currentStep && (
           <div className="next-turn-banner">
             <span className="next-turn-icon">
-              <Icon name="turn-left" size={26} />
+              <Icon name={currentStep.icon} size={26} />
             </span>
             <span className="next-turn-copy">
-              <small>Trong 220 m</small>
-              <strong>Rẽ trái vào Võ Thị Sáu</strong>
+              <small>Trong {currentStep.distance}</small>
+              <strong>
+                {currentStep.instruction} {currentStep.street}
+              </strong>
             </span>
             <span className="next-turn-then">Sau đó rẽ phải</span>
           </div>
@@ -130,11 +333,16 @@ function App() {
           Báo cáo
         </button>
 
-        <span className="demo-label">Dữ liệu minh họa</span>
+        <span className="demo-label">
+          {isLiveBackend
+            ? "Dữ liệu trực tuyến · PostgreSQL & Open-Meteo"
+            : "Đang đồng bộ Backend…"}
+        </span>
       </section>
 
       <div className="mobile-panel">
         <JourneyPanel
+          canSaveRoute={Boolean(origin && destination)}
           expanded={panelExpanded}
           focusSection={
             activeTab === "tracking"
@@ -144,19 +352,56 @@ function App() {
                 : null
           }
           forecastIndex={forecastIndex}
+          forecasts={forecasts}
+          isNavigating={isNavigating}
+          navigationSteps={navigationSteps}
+          onRemoveSavedRoute={handleRemoveSavedRoute}
+          onReport={() => setReportOpen(true)}
+          onSaveCurrentRoute={handleSaveCurrentRoute}
+          onSelectSavedRoute={handleSelectSavedRoute}
+          onStart={toggleNavigation}
+          routesData={routesData}
+          savedRoutes={savedRoutes}
           selectedRoute={selectedRoute}
           setExpanded={setPanelExpanded}
           setForecastIndex={setForecastIndex}
           setSelectedRoute={setSelectedRoute}
-          isNavigating={isNavigating}
-          onStart={toggleNavigation}
-          onReport={() => setReportOpen(true)}
         />
       </div>
 
       <BottomNav activeTab={activeTab} onSelect={selectTab} />
 
-      <ReportModal onClose={() => setReportOpen(false)} open={reportOpen} />
+      <ReportModal
+        onClose={() => setReportOpen(false)}
+        onReportCreated={() => {
+          if (currentUser) {
+            const updated: CommunityUserProfile = {
+              ...currentUser,
+              reports: currentUser.reports + 1,
+            }
+            setCurrentUser(updated)
+            saveAuthSession(updated)
+          }
+        }}
+        open={reportOpen}
+        reporterId={currentUser?.id}
+      />
+
+      <AuthModal
+        currentUser={currentUser}
+        onAuthSuccess={(user) => setCurrentUser(user)}
+        onClose={() => setAuthOpen(false)}
+        onLogout={() => setCurrentUser(null)}
+        open={authOpen}
+      />
+
+      <NotificationsModal
+        alerts={activeAlerts}
+        mode={notifMode}
+        onChangeMode={setNotifMode}
+        onClose={() => setNotifOpen(false)}
+        open={notifOpen}
+      />
     </main>
   )
 }

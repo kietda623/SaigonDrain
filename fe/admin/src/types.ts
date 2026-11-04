@@ -27,6 +27,8 @@ export type FloodReport = {
   coordinates: string
   historyCount: number
   visual: "street" | "drain" | "night" | "traffic"
+  photoUrl?: string
+  reporterId?: string
 }
 
 export type AreaAlert = {
@@ -47,6 +49,9 @@ export type MapPoint = {
   id: string
   x: number
   y: number
+  lat?: number
+  lng?: number
+  elevationM?: number
   type: "flood" | "pending" | "risk" | "sensor"
   severity: Severity
   label: string
@@ -85,3 +90,27 @@ export type CommunityUser = {
   warnings: number
 }
 
+export type WeatherSnapshot = {
+  provider: string
+  locationName: string
+  temperatureC: number
+  humidityPercent: number
+  windSpeedKmh: number
+  currentRainMm: number
+  weatherCondition: string
+  floodRiskLevel: "Thấp" | "Trung bình" | "Cao" | "Rất cao"
+  elevationM?: number
+}
+
+export type TrendItem = {
+  labels: string[]
+  reports: number[]
+  rain: number[]
+  insight: string
+}
+
+export type TrendsMap = {
+  "24h": TrendItem
+  "7d": TrendItem
+  "30d": TrendItem
+}

@@ -1,15 +1,17 @@
 import { Sparkles } from "lucide-react"
 import Heading from "@/components/ui/Heading"
-import { trends } from "@/data/trends"
+import type { TrendsMap } from "@/types"
 
 function TrendChart({
   range,
   setRange,
+  trendsData,
 }: {
-  range: keyof typeof trends
-  setRange: (range: keyof typeof trends) => void
+  range: keyof TrendsMap
+  setRange: (range: keyof TrendsMap) => void
+  trendsData: TrendsMap
 }) {
-  const data = trends[range]
+  const data = trendsData[range]
   const labels = data.labels.filter((label) => label.trim())
   const reports = data.reports.slice(0, labels.length)
   const rain = data.rain.slice(0, labels.length)
@@ -106,6 +108,5 @@ function TrendChart({
     </section>
   )
 }
-
 
 export default TrendChart

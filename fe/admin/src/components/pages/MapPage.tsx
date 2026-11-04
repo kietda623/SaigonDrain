@@ -2,11 +2,11 @@ import { Droplets, MapPin, Radar } from "lucide-react"
 import OperationsMap from "@/components/map/OperationsMap"
 import SectionHeader from "@/components/ui/SectionHeader"
 import StatusPill from "@/components/ui/StatusPill"
-import { mapPoints } from "@/data/mapPoints"
 import type { FloodReport, MapLayer, MapPoint, Severity } from "@/types"
 
 function MapPage({
   reports,
+  points,
   selectedMapPoint,
   onSelectPoint,
   layers,
@@ -15,6 +15,7 @@ function MapPage({
   setSeverityFilter,
 }: {
   reports: FloodReport[]
+  points: MapPoint[]
   selectedMapPoint: string | null
   onSelectPoint: (point: MapPoint) => void
   layers: MapLayer[]
@@ -25,13 +26,13 @@ function MapPage({
   const pendingCount = reports.filter(
     (report) => report.status === "pending",
   ).length
-  const floodPoints = mapPoints.filter((point) => point.type === "flood").length
-  const riskPoints = mapPoints.filter((point) => point.type === "risk").length
+  const floodPoints = points.filter((point) => point.type === "flood").length
+  const riskPoints = points.filter((point) => point.type === "risk").length
 
   return (
     <div className="page-stack">
       <SectionHeader
-        action={<StatusPill tone="safe">Đồng bộ 18:48</StatusPill>}
+        action={<StatusPill tone="safe">Đồng bộ trực tuyến</StatusPill>}
         description="Bật tắt lớp dữ liệu, lọc mức độ và chọn điểm để xem chi tiết hiện trường."
         title="Lớp dữ liệu và bộ lọc"
       />
@@ -42,7 +43,7 @@ function MapPage({
             <MapPin size={18} />
           </span>
           <div>
-            <strong>{mapPoints.length}</strong>
+            <strong>{points.length}</strong>
             <span>Điểm đang giám sát</span>
           </div>
         </div>
@@ -78,6 +79,7 @@ function MapPage({
       <OperationsMap
         layers={layers}
         onSelect={onSelectPoint}
+        points={points}
         reports={reports}
         selectedId={selectedMapPoint}
         setLayers={setLayers}

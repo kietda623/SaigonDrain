@@ -1,8 +1,30 @@
+import { useEffect, useState } from "react"
 import { Bell, CloudRain, Download, Menu, Plus } from "lucide-react"
 import Button from "@/components/ui/Button"
 import Heading from "@/components/ui/Heading"
 import IconButton from "@/components/ui/IconButton"
-import type { Page } from "@/types"
+import type { Page, WeatherSnapshot } from "@/types"
+
+function getVietnamDateTimeSubtitle(nowDate = new Date()): string {
+  const weekdayAndDate = new Intl.DateTimeFormat("vi-VN", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    weekday: "long",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(nowDate)
+
+  const timeHm = new Intl.DateTimeFormat("vi-VN", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(nowDate)
+
+  const capitalized =
+    weekdayAndDate.charAt(0).toUpperCase() + weekdayAndDate.slice(1)
+  return `${capitalized} · Giờ Việt Nam ${timeHm} (GMT+7)`
+}
 
 const pageMeta: Record<
   Page,
@@ -11,7 +33,7 @@ const pageMeta: Record<
   overview: {
     eyebrow: "Giám sát thời gian thực",
     title: "Tổng quan điều hành",
-    subtitle: "Thứ Bảy, 24/05/2025 · Dữ liệu cập nhật lúc 18:48",
+    subtitle: "",
     live: true,
   },
   map: {
@@ -46,13 +68,31 @@ function Topbar({
   onOpenMenu,
   onCreateAlert,
   onExportUsers,
+  weather,
+  onSyncWeather,
 }: {
   page: Page
   onOpenMenu: () => void
   onCreateAlert: () => void
   onExportUsers: () => void
+  weather?: WeatherSnapshot | null
+  onSyncWeather?: () => void
 }) {
+  const [vnSubtitle, setVnSubtitle] = useState(() =>
+    getVietnamDateTimeSubtitle(),
+  )
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setVnSubtitle(getVietnamDateTimeSubtitle())
+    }, 30_000)
+    return () => window.clearInterval(timer)
+  }, [])
+
   const meta = pageMeta[page]
+  const weatherSummary = weather
+    ? `${weather.weatherCondition} · ${Math.round(weather.temperatureC)}°C`
+    : "Mưa lớn · 27°C"
 
   return (
     <header className="topbar">
@@ -80,15 +120,21 @@ function Topbar({
               </span>
             )}
           </div>
-          <p>{meta.subtitle}</p>
+          <p>{page === "overview" ? vnSubtitle : meta.subtitle}</p>
         </div>
       </div>
       <div className="topbar-actions">
-        <div className="weather-chip">
+        <div
+          className="weather-chip"
+          onClick={onSyncWeather}
+          role={onSyncWeather ? "button" : undefined}
+          style={onSyncWeather ? { cursor: "pointer" } : undefined}
+          title="Nhấn để đồng bộ thời tiết thực tế từ Open-Meteo API"
+        >
           <CloudRain size={18} />
           <span>
-            <small>TP. Hồ Chí Minh</small>
-            <b>Mưa lớn · 27°C</b>
+            <small>{weather?.locationName || "TP. Hồ Chí Minh"}</small>
+            <b>{weatherSummary}</b>
           </span>
         </div>
         <IconButton label="Thông báo" className="notification-button">

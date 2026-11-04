@@ -1,13 +1,22 @@
-import { forecastSlots } from "@/data/mockData"
+import type { ForecastSlot } from "@/types"
 
 function ForecastTimeline({
   value,
   onChange,
+  slots,
 }: {
   value: number
   onChange: (index: number) => void
+  slots: readonly ForecastSlot[]
 }) {
-  const current = forecastSlots[value]
+  const current = slots[value] ??
+    slots[0] ?? {
+      id: "now",
+      label: "Hiện tại",
+      rain: "0 mm",
+      risk: "Thấp",
+      zone: 0 as const,
+    }
 
   return (
     <div className="forecast-section">
@@ -25,7 +34,7 @@ function ForecastTimeline({
         className="forecast-tabs"
         role="group"
       >
-        {forecastSlots.map((slot, index) => {
+        {slots.map((slot, index) => {
           const rain = Number.parseInt(slot.rain, 10)
           const height = Math.max(16, Math.min(100, (rain / 60) * 100))
 

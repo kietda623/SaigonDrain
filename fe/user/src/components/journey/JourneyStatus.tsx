@@ -1,9 +1,22 @@
 import Icon from "@/components/ui/Icon"
 import WaterGauge from "@/components/ui/WaterGauge"
-import { forecastSlots } from "@/data/mockData"
+import type { ForecastSlot } from "@/types"
 
-function JourneyStatus({ forecastIndex }: { forecastIndex: number }) {
-  const forecast = forecastSlots[forecastIndex]
+function JourneyStatus({
+  forecastIndex,
+  slots,
+}: {
+  forecastIndex: number
+  slots: readonly ForecastSlot[]
+}) {
+  const forecast = slots[forecastIndex] ??
+    slots[0] ?? {
+      id: "now",
+      label: "Hiện tại",
+      rain: "0 mm",
+      risk: "Thấp",
+      zone: 0 as const,
+    }
   const isHighRisk = forecast.zone >= 2
   const isWarning = forecast.zone === 1
   const statusTitle = isHighRisk

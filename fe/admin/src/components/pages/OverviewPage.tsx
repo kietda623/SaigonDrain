@@ -8,8 +8,6 @@ import OperationsMap from "@/components/map/OperationsMap"
 import ReportQueue from "@/components/reports/ReportQueue"
 import AlertTable from "@/components/alerts/AlertTable"
 import SectionHeader from "@/components/ui/SectionHeader"
-import { mapPoints } from "@/data/mapPoints"
-import { trends } from "@/data/trends"
 import type {
   AreaAlert,
   FloodReport,
@@ -17,11 +15,16 @@ import type {
   MapPoint,
   Page,
   Severity,
+  TrendsMap,
+  WeatherSnapshot,
 } from "@/types"
 
 function OverviewPage({
   reports,
   alerts,
+  points,
+  trendsData,
+  weather,
   selectedMapPoint,
   onSelectPoint,
   layers,
@@ -37,14 +40,17 @@ function OverviewPage({
 }: {
   reports: FloodReport[]
   alerts: AreaAlert[]
+  points: MapPoint[]
+  trendsData: TrendsMap
+  weather?: WeatherSnapshot | null
   selectedMapPoint: string | null
   onSelectPoint: (point: MapPoint) => void
   layers: MapLayer[]
   setLayers: (layers: MapLayer[]) => void
   severityFilter: "all" | Severity
   setSeverityFilter: (value: "all" | Severity) => void
-  trendRange: keyof typeof trends
-  setTrendRange: (range: keyof typeof trends) => void
+  trendRange: keyof TrendsMap
+  setTrendRange: (range: keyof TrendsMap) => void
   onNavigate: (page: Page) => void
   onReview: (report: FloodReport) => void
   onEditAlert: (alert: AreaAlert) => void
@@ -54,11 +60,12 @@ function OverviewPage({
     (report) => report.status === "pending",
   ).length
   const activeAlerts = alerts.filter((alert) => alert.status === "active")
-  const highRiskCount = mapPoints.filter(
+  const highRiskCount = points.filter(
     (point) => point.severity !== "medium",
   ).length
-  const totalReports =
-    reports.filter((report) => report.status !== "rejected").length + 124
+  const totalReports = reports.filter(
+    (report) => report.status !== "rejected",
+  ).length
 
   const metrics = useMemo(
     () => [
@@ -113,6 +120,7 @@ function OverviewPage({
         onViewAlerts={() => onNavigate("alerts")}
         onViewMap={() => onNavigate("map")}
         pendingCount={pendingCount}
+        weather={weather}
       />
 
       <div className="metrics-grid">
@@ -122,7 +130,11 @@ function OverviewPage({
       </div>
 
       <div className="overview-grid">
-        <TrendChart range={trendRange} setRange={setTrendRange} />
+        <TrendChart
+          range={trendRange}
+          setRange={setTrendRange}
+          trendsData={trendsData}
+        />
         <ReportQueue
           onReview={onReview}
           onViewAll={() => onNavigate("reports")}
@@ -135,6 +147,7 @@ function OverviewPage({
           layers={layers}
           onExpand={() => onNavigate("map")}
           onSelect={onSelectPoint}
+          points={points}
           reports={reports}
           selectedId={selectedMapPoint}
           setLayers={setLayers}

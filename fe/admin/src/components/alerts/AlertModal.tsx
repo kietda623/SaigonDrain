@@ -3,7 +3,15 @@ import { AlertTriangle, Check, ShieldPlus } from "lucide-react"
 import Button from "@/components/ui/Button"
 import Field from "@/components/ui/Field"
 import ModalShell from "@/components/ui/ModalShell"
-import { emptyDraft } from "@/data/alerts"
+const emptyDraft: AlertDraft = {
+  area: "",
+  level: "Cảnh báo",
+  hazardType: "Ngập đường",
+  title: "",
+  message: "",
+  expiresAt: "21:00",
+  channels: ["Web", "Push"],
+}
 import type { AlertLevel, AreaAlert, AlertDraft } from "@/types"
 
 function AlertModal({
