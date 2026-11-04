@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react"
+import { getUserLocation } from "@/lib/location"
 import {
   DEFAULT_HCMC_WEATHER,
   type DetailedWeatherData,
@@ -304,32 +305,24 @@ function WeatherPage({
     setLoading(false)
   }
 
-  // Định vị GPS của người dùng hiện tại
-  function handleUseGps() {
-    if (!navigator.geolocation) {
-      alert("Trình duyệt không hỗ trợ định vị GPS.")
-      return
-    }
+  // Định vị GPS của người dùng hiện tại (hỗ trợ tự động fallback khi bị chặn quyền trên LAN IP)
+  async function handleUseGps() {
     setLoading(true)
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const { latitude, longitude } = pos.coords
-        const fresh = await fetchFullRealWeather(
-          latitude,
-          longitude,
-          "Vị trí của bạn",
-        )
-        setData(fresh)
-        onThemeChange?.(fresh.theme)
-        setLoading(false)
-        onLocateUser?.()
-      },
-      () => {
-        setLoading(false)
-        alert("Không thể lấy vị trí hiện tại. Vui lòng cấp quyền vị trí.")
-      },
-      { timeout: 7000 },
-    )
+    try {
+      const { latitude, longitude, isIpFallback } = await getUserLocation()
+      const fresh = await fetchFullRealWeather(
+        latitude,
+        longitude,
+        isIpFallback ? "Vị trí ước tính" : "Vị trí của bạn",
+      )
+      setData(fresh)
+      onThemeChange?.(fresh.theme)
+      onLocateUser?.()
+    } catch (err) {
+      console.warn("Failed to locate weather position:", err)
+    } finally {
+      setLoading(false)
+    }
   }
 
   // Xác định theme class theo điều kiện thời tiết thật

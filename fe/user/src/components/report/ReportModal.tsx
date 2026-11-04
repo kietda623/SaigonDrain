@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import Icon from "@/components/ui/Icon"
+import { getUserLocation } from "@/lib/location"
 import {
   createCitizenReport,
   matchDynamicPlacePool,
@@ -119,29 +120,24 @@ function ReportModal({
     }
   }, [locationText, showSuggestions])
 
-  function handleUseGps() {
-    if (!navigator.geolocation) return
+  async function handleUseGps() {
     setLocatingGps(true)
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const lat = pos.coords.latitude
-        const lng = pos.coords.longitude
-        const geo = await reverseGeocodeApi(lat, lng)
-        setLocationText(
-          geo.district
-            ? `${geo.location}, ${geo.district}`
-            : geo.location,
-        )
-        setSelectedDistrict(geo.district || "TP.HCM")
-        setCoords([lng, lat])
-        setLocatingGps(false)
-        setShowSuggestions(false)
-      },
-      () => {
-        setLocatingGps(false)
-      },
-      { enableHighAccuracy: true, timeout: 6000 },
-    )
+    try {
+      const { latitude, longitude } = await getUserLocation()
+      const geo = await reverseGeocodeApi(latitude, longitude)
+      setLocationText(
+        geo.district
+          ? `${geo.location}, ${geo.district}`
+          : geo.location,
+      )
+      setSelectedDistrict(geo.district || "TP.HCM")
+      setCoords([longitude, latitude])
+      setShowSuggestions(false)
+    } catch (err) {
+      console.warn("Failed to locate position in ReportModal:", err)
+    } finally {
+      setLocatingGps(false)
+    }
   }
 
   async function handlePhotoChange(event: React.ChangeEvent<HTMLInputElement>) {
