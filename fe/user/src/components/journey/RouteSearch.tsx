@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import Icon from "@/components/ui/Icon"
 import { matchDynamicPlacePool, reverseGeocodeApi, searchPlacesApi } from "@/lib/api"
+import { getUserLocation } from "@/lib/location"
 import type { RouteEndpoint } from "@/types"
 
 function RouteSearch({
@@ -29,86 +30,36 @@ function RouteSearch({
 
   const handleGetOriginGps = async () => {
     setGpsLoading(true)
-
-    const setCoordsLocation = async (lat: number, lng: number, isIpFallback = false) => {
+    try {
+      const { latitude, longitude } = await getUserLocation()
       try {
-        const geo = await reverseGeocodeApi(lat, lng)
-        const street = geo.location || "Vị trí của bạn"
-        const prefix = isIpFallback ? "Vị trí ước tính · " : "Vị trí hiện tại · "
-        const label = `${prefix}${street}`
+        const geo = await reverseGeocodeApi(latitude, longitude)
+        const street = geo.location || (geo.district ? `${geo.district}, TP.HCM` : "Vị trí của bạn")
+        const label = `Vị trí của bạn · ${street}`
         const place: RouteEndpoint = {
           label,
           address: geo.location,
           district: geo.district,
-          coords: [lng, lat],
+          coords: [longitude, latitude],
         }
         onSelectOrigin(place)
         setOriginText(label)
         setActiveField(null)
         setSuggestions([])
       } catch {
-        const prefix = isIpFallback ? "Vị trí ước tính" : "Vị trí của bạn"
-        const label = `${prefix} (${lat.toFixed(4)}, ${lng.toFixed(4)})`
+        const label = `Vị trí của bạn (${latitude.toFixed(4)}, ${longitude.toFixed(4)})`
         const place: RouteEndpoint = {
           label,
-          coords: [lng, lat],
+          coords: [longitude, latitude],
         }
         onSelectOrigin(place)
         setOriginText(label)
         setActiveField(null)
         setSuggestions([])
-      } finally {
-        setGpsLoading(false)
       }
+    } finally {
+      setGpsLoading(false)
     }
-
-    const fallbackToIpLocation = async () => {
-      try {
-        const res = await fetch("https://ipwho.is/")
-        if (res.ok) {
-          const data = await res.json()
-          if (data && data.success && data.latitude && data.longitude) {
-            await setCoordsLocation(data.latitude, data.longitude, true)
-            return
-          }
-        }
-      } catch {
-        // try secondary IP service
-      }
-
-      try {
-        const res2 = await fetch("https://get.geojs.io/v1/ip/geo.json")
-        if (res2.ok) {
-          const data2 = await res2.json()
-          if (data2 && data2.latitude && data2.longitude) {
-            await setCoordsLocation(parseFloat(data2.latitude), parseFloat(data2.longitude), true)
-            return
-          }
-        }
-      } catch {
-        // try HCM default
-      }
-
-      await setCoordsLocation(10.7769, 106.7009, true)
-    }
-
-    const isSecure = window.isSecureContext || window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
-
-    if (!isSecure || !navigator.geolocation) {
-      await fallbackToIpLocation()
-      return
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        await setCoordsLocation(pos.coords.latitude, pos.coords.longitude, false)
-      },
-      async (err) => {
-        console.warn("GPS lookup denied or unavailable, switching to IP Geolocation:", err)
-        await fallbackToIpLocation()
-      },
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 }
-    )
   }
 
   useEffect(() => {
