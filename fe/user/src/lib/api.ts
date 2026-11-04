@@ -749,10 +749,50 @@ export async function createCitizenReport(payload: {
   }
 }
 
+export const HCM_DISTRICT_COORDS: Array<{ name: string; lat: number; lng: number }> = [
+  { name: "Quận 1", lat: 10.7756, lng: 106.7004 },
+  { name: "Quận 3", lat: 10.7844, lng: 106.6844 },
+  { name: "Quận 4", lat: 10.7578, lng: 106.7013 },
+  { name: "Quận 5", lat: 10.7540, lng: 106.6634 },
+  { name: "Quận 6", lat: 10.7481, lng: 106.6352 },
+  { name: "Quận 7", lat: 10.7340, lng: 106.7218 },
+  { name: "Quận 8", lat: 10.7241, lng: 106.6286 },
+  { name: "Quận 10", lat: 10.7716, lng: 106.6672 },
+  { name: "Quận 11", lat: 10.7630, lng: 106.6502 },
+  { name: "Quận 12", lat: 10.8672, lng: 106.6413 },
+  { name: "Bình Thạnh", lat: 10.8106, lng: 106.7091 },
+  { name: "Gò Vấp", lat: 10.8387, lng: 106.6653 },
+  { name: "Phú Nhuận", lat: 10.7992, lng: 106.6803 },
+  { name: "Tân Bình", lat: 10.8015, lng: 106.6526 },
+  { name: "Tân Phú", lat: 10.7901, lng: 106.6280 },
+  { name: "Bình Tân", lat: 10.7653, lng: 106.6047 },
+  { name: "TP. Thủ Đức", lat: 10.8494, lng: 106.7717 },
+  { name: "Nhà Bè", lat: 10.6953, lng: 106.7287 },
+  { name: "Bình Chánh", lat: 10.6874, lng: 106.5938 },
+  { name: "Hóc Môn", lat: 10.8839, lng: 106.5934 },
+  { name: "Củ Chi", lat: 10.9731, lng: 106.4938 },
+  { name: "Cần Giờ", lat: 10.4114, lng: 106.8642 },
+]
+
+export function getClosestHcmDistrict(lat: number, lng: number): string {
+  let closest = HCM_DISTRICT_COORDS[0]
+  let minD = Infinity
+  for (const d of HCM_DISTRICT_COORDS) {
+    const dist = (d.lat - lat) ** 2 + (d.lng - lng) ** 2
+    if (dist < minD) {
+      minD = dist
+      closest = d
+    }
+  }
+  return closest.name
+}
+
 export async function reverseGeocodeApi(
   lat: number,
   lng: number,
 ): Promise<{ location: string; district: string; coords: [number, number] }> {
+  const fallbackDistrict = getClosestHcmDistrict(lat, lng)
+
   try {
     const res = await fetch(
       `${API_BASE}/map/geocode/reverse?lat=${lat}&lng=${lng}`,
@@ -762,7 +802,7 @@ export async function reverseGeocodeApi(
       if (data?.location) {
         return {
           location: data.location,
-          district: data.district || "TP.HCM",
+          district: data.district || fallbackDistrict,
           coords: [lng, lat],
         }
       }
@@ -779,9 +819,22 @@ export async function reverseGeocodeApi(
     if (nomRes.ok) {
       const data = await nomRes.json()
       const addr = data.address || {}
-      const road = addr.road || addr.suburb || addr.neighbourhood || ""
-      const district = addr.city_district || addr.county || addr.district || "TP.HCM"
-      const location = road ? `${road}, ${district}` : (data.display_name?.split(",")[0] || `${lat.toFixed(4)}, ${lng.toFixed(4)}`)
+      const road = addr.road || ""
+      const ward = addr.suburb || addr.quarter || addr.neighbourhood || ""
+      let district = addr.city_district || addr.county || addr.district || ""
+      if (!district || district === "Thành phố Hồ Chí Minh" || district === "TP.HCM") {
+        district = fallbackDistrict
+      }
+
+      let location = ""
+      if (ward && district) {
+        location = road ? `${road}, ${ward}, ${district}` : `${ward}, ${district}`
+      } else if (district) {
+        location = road ? `${road}, ${district}` : `${district}, TP.HCM`
+      } else {
+        location = `${fallbackDistrict}, TP.HCM`
+      }
+
       return {
         location,
         district,
@@ -793,8 +846,8 @@ export async function reverseGeocodeApi(
   }
 
   return {
-    location: `Vị trí (${lat.toFixed(4)}, ${lng.toFixed(4)})`,
-    district: "TP.HCM",
+    location: `${fallbackDistrict}, TP.HCM`,
+    district: fallbackDistrict,
     coords: [lng, lat],
   }
 }

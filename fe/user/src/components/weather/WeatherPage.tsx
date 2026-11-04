@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { getUserLocation } from "@/lib/location"
+import { reverseGeocodeApi } from "@/lib/api"
 import {
   DEFAULT_HCMC_WEATHER,
   type DetailedWeatherData,
@@ -305,15 +306,18 @@ function WeatherPage({
     setLoading(false)
   }
 
-  // Định vị GPS của người dùng hiện tại (hỗ trợ tự động fallback khi bị chặn quyền trên LAN IP)
+  // Định vị GPS của người dùng hiện tại và tự động nhận diện Quận/Phường thực tế
   async function handleUseGps() {
     setLoading(true)
     try {
-      const { latitude, longitude, isIpFallback } = await getUserLocation()
+      const { latitude, longitude } = await getUserLocation()
+      const geo = await reverseGeocodeApi(latitude, longitude)
+      const locationLabel = geo.location || (geo.district ? `${geo.district}, TP.HCM` : "Hồ Chí Minh")
+
       const fresh = await fetchFullRealWeather(
         latitude,
         longitude,
-        isIpFallback ? "Vị trí ước tính" : "Vị trí của bạn",
+        locationLabel,
       )
       setData(fresh)
       onThemeChange?.(fresh.theme)

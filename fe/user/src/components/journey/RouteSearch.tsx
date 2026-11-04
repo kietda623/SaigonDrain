@@ -31,12 +31,11 @@ function RouteSearch({
   const handleGetOriginGps = async () => {
     setGpsLoading(true)
     try {
-      const { latitude, longitude, isIpFallback } = await getUserLocation()
+      const { latitude, longitude } = await getUserLocation()
       try {
         const geo = await reverseGeocodeApi(latitude, longitude)
-        const street = geo.location || "Vị trí của bạn"
-        const prefix = isIpFallback ? "Vị trí ước tính · " : "Vị trí hiện tại · "
-        const label = `${prefix}${street}`
+        const street = geo.location || (geo.district ? `${geo.district}, TP.HCM` : "Vị trí của bạn")
+        const label = `Vị trí của bạn · ${street}`
         const place: RouteEndpoint = {
           label,
           address: geo.location,
@@ -48,8 +47,7 @@ function RouteSearch({
         setActiveField(null)
         setSuggestions([])
       } catch {
-        const prefix = isIpFallback ? "Vị trí ước tính" : "Vị trí của bạn"
-        const label = `${prefix} (${latitude.toFixed(4)}, ${longitude.toFixed(4)})`
+        const label = `Vị trí của bạn (${latitude.toFixed(4)}, ${longitude.toFixed(4)})`
         const place: RouteEndpoint = {
           label,
           coords: [longitude, latitude],
