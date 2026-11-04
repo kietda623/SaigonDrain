@@ -107,7 +107,7 @@ function RouteSearch({
         console.warn("GPS lookup denied or unavailable, switching to IP Geolocation:", err)
         await fallbackToIpLocation()
       },
-      { enableHighAccuracy: true, timeout: 6000 }
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 }
     )
   }
 
