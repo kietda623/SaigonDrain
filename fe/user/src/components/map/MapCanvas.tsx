@@ -16,12 +16,20 @@ function MapCanvas({
   origin,
   destination,
   floodPoints = [],
+  isNavigating = false,
+  navStepIndex = 0,
+  navigationSteps = [],
+  recenterTrigger = 0,
 }: {
   route: RouteId
   routesData: Record<RouteId, RouteItem>
   origin: RouteEndpoint | null
   destination: RouteEndpoint | null
   floodPoints?: MapFloodPoint[]
+  isNavigating?: boolean
+  navStepIndex?: number
+  navigationSteps?: any[]
+  recenterTrigger?: number
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<LibreMap | null>(null)
@@ -30,10 +38,15 @@ function MapCanvas({
   const etaRef = useRef<HTMLDivElement | null>(null)
   const etaMarkerRef = useRef<maplibregl.Marker | null>(null)
   const floodMarkersRef = useRef<maplibregl.Marker[]>([])
+  const activeRouteCoordsRef = useRef<number[][]>([])
+  const puckMarkerRef = useRef<maplibregl.Marker | null>(null)
+  const isNavigatingRef = useRef(isNavigating)
+  isNavigatingRef.current = isNavigating
   const [routeStatus, setRouteStatus] = useState<
     "idle" | "loading" | "live" | "fallback"
   >("idle")
   const [ready, setReady] = useState(false)
+  const [routeVersion, setRouteVersion] = useState(0)
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return
@@ -283,6 +296,9 @@ function MapCanvas({
       const currentMap = mapRef.current
       if (!active || !currentMap) return
 
+      activeRouteCoordsRef.current = safeCoords
+      setRouteVersion((v) => v + 1)
+
       const sguSrc = currentMap.getSource("sgu-route") as GeoJSONSource | undefined
       sguSrc?.setData({
         type: "Feature",
@@ -327,14 +343,16 @@ function MapCanvas({
           allCoords[0] as [number, number],
         ),
       )
-      currentMap.fitBounds(bounds, {
-        padding:
-          window.innerWidth < 760
-            ? { top: 190, right: 40, bottom: 300, left: 40 }
-            : { top: 90, right: 80, bottom: 110, left: 80 },
-        duration: 850,
-        maxZoom: 15.4,
-      })
+      if (!isNavigatingRef.current) {
+        currentMap.fitBounds(bounds, {
+          padding:
+            window.innerWidth < 760
+              ? { top: 190, right: 40, bottom: 300, left: 40 }
+              : { top: 90, right: 80, bottom: 110, left: 80 },
+          duration: 850,
+          maxZoom: 15.4,
+        })
+      }
     }
 
     loadRouteGeometry()
@@ -343,6 +361,120 @@ function MapCanvas({
       active = false
     }
   }, [ready, origin, destination])
+
+  // Điều khiển Camera 3D phóng bự & Xoay theo góc đường giống Google Maps khi dẫn đường
+  useEffect(() => {
+    const map = mapRef.current
+    if (!ready || !map) return
+
+    let coords = activeRouteCoordsRef.current
+    if (!coords || coords.length === 0) {
+      const fallback = (routesData[route] as any)?.coordinates || (routesData[route] as any)?.geometry?.coordinates
+      if (Array.isArray(fallback) && fallback.length > 0) {
+        coords = fallback
+        activeRouteCoordsRef.current = fallback
+      } else if (origin && destination) {
+        coords = [origin.coords, destination.coords]
+        activeRouteCoordsRef.current = coords
+      }
+    }
+    if (!coords || coords.length === 0) return
+
+    if (!isNavigating) {
+      // Khi dừng dẫn đường -> Xóa puck 3D và khôi phục góc nhìn phẳng toàn cảnh
+      puckMarkerRef.current?.remove()
+      puckMarkerRef.current = null
+
+      map.flyTo({
+        pitch: 0,
+        bearing: 0,
+        duration: 900,
+      })
+
+      if (coords.length > 1) {
+        const bounds = coords.reduce(
+          (result, coordinate) => result.extend(coordinate as [number, number]),
+          new maplibregl.LngLatBounds(
+            coords[0] as [number, number],
+            coords[0] as [number, number],
+          ),
+        )
+        map.fitBounds(bounds, {
+          padding:
+            window.innerWidth < 760
+              ? { top: 190, right: 40, bottom: 300, left: 40 }
+              : { top: 90, right: 80, bottom: 110, left: 80 },
+          duration: 900,
+          maxZoom: 15.4,
+        })
+      }
+      return
+    }
+
+    // Khi ĐANG DẪN ĐƯỜNG (isNavigating = true):
+    // 1. Tính toán vị trí tương ứng với bước rẽ hiện tại (navStepIndex)
+    const totalSteps = Math.max(1, navigationSteps.length)
+    const stepRatio = Math.min(0.96, navStepIndex / totalSteps)
+    const targetIdx = Math.min(
+      coords.length - 1,
+      Math.floor(stepRatio * (coords.length - 1)),
+    )
+    const currentPoint = (coords[targetIdx] || coords[0]) as [number, number]
+    const nextPoint = (coords[Math.min(coords.length - 1, targetIdx + 2)] ||
+      coords[Math.min(coords.length - 1, targetIdx + 1)] ||
+      currentPoint) as [number, number]
+
+    // 2. Tính góc phương vị (bearing) theo hướng trục đường
+    function getBearing(start: [number, number], end: [number, number]): number {
+      const y = Math.sin(((end[0] - start[0]) * Math.PI) / 180) * Math.cos((end[1] * Math.PI) / 180)
+      const x =
+        Math.cos((start[1] * Math.PI) / 180) * Math.sin((end[1] * Math.PI) / 180) -
+        Math.sin((start[1] * Math.PI) / 180) *
+          Math.cos((end[1] * Math.PI) / 180) *
+          Math.cos(((end[0] - start[0]) * Math.PI) / 180)
+      return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360
+    }
+
+    const roadBearing = getBearing(currentPoint, nextPoint)
+
+    // 3. Phóng bự bản đồ sát mặt đường (zoom 17.8) + Nghiêng 3D (pitch 60 độ) + Xoay theo hướng đi
+    map.flyTo({
+      center: currentPoint,
+      zoom: 17.8,
+      pitch: 62,
+      bearing: roadBearing,
+      duration: 1500,
+      essential: true,
+    })
+
+    // 4. Tạo hoặc cập nhật Navigation Puck (Mũi tên dẫn đường 3D chuẩn Google Maps)
+    if (!puckMarkerRef.current) {
+      const puckEl = document.createElement("div")
+      puckEl.className = "google-nav-puck"
+      puckEl.innerHTML = `
+        <div class="puck-radar-wave"></div>
+        <div class="puck-arrow-body">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="#FFFFFF">
+            <path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/>
+          </svg>
+        </div>
+      `
+      puckMarkerRef.current = new maplibregl.Marker({
+        element: puckEl,
+        anchor: "center",
+      })
+        .setLngLat(currentPoint)
+        .addTo(map)
+    } else {
+      puckMarkerRef.current.setLngLat(currentPoint)
+    }
+
+    // Xoay mũi tên puck theo góc đường
+    const arrowBody = puckMarkerRef.current.getElement().querySelector(".puck-arrow-body") as HTMLElement | null
+    if (arrowBody) {
+      arrowBody.style.transform = `rotate(${roadBearing}deg)`
+    }
+  }, [isNavigating, navStepIndex, recenterTrigger, ready, routeVersion, navigationSteps.length])
 
   // Hiển thị các điểm ngập thực tế từ PostgreSQL lên bản đồ
   useEffect(() => {

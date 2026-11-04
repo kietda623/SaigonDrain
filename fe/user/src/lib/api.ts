@@ -759,17 +759,41 @@ export async function reverseGeocodeApi(
     )
     if (res.ok) {
       const data = await res.json()
+      if (data?.location) {
+        return {
+          location: data.location,
+          district: data.district || "TP.HCM",
+          coords: [lng, lat],
+        }
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  try {
+    const nomRes = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
+      { headers: { "Accept-Language": "vi" } },
+    )
+    if (nomRes.ok) {
+      const data = await nomRes.json()
+      const addr = data.address || {}
+      const road = addr.road || addr.suburb || addr.neighbourhood || ""
+      const district = addr.city_district || addr.county || addr.district || "TP.HCM"
+      const location = road ? `${road}, ${district}` : (data.display_name?.split(",")[0] || `${lat.toFixed(4)}, ${lng.toFixed(4)}`)
       return {
-        location: data?.location || `${lat.toFixed(4)}, ${lng.toFixed(4)}`,
-        district: data?.district || "TP.HCM",
+        location,
+        district,
         coords: [lng, lat],
       }
     }
   } catch {
     // ignore
   }
+
   return {
-    location: `${lat.toFixed(4)}, ${lng.toFixed(4)}`,
+    location: `Vị trí (${lat.toFixed(4)}, ${lng.toFixed(4)})`,
     district: "TP.HCM",
     coords: [lng, lat],
   }

@@ -48,6 +48,16 @@ const EMPTY_FORECAST: ForecastSlot = {
   zone: 0,
 }
 
+function calculateEta(minutesStr?: string): string {
+  const match = (minutesStr || "").match(/\d+/)
+  const minutes = match ? parseInt(match[0], 10) : 15
+  const now = new Date()
+  now.setMinutes(now.getMinutes() + minutes)
+  const h = String(now.getHours()).padStart(2, "0")
+  const m = String(now.getMinutes()).padStart(2, "0")
+  return `${h}:${m}`
+}
+
 function App() {
   const [forecastIndex, setForecastIndex] = useState(1)
   const [selectedRoute, setSelectedRoute] = useState<RouteId>("safe")
@@ -64,6 +74,8 @@ function App() {
   const [activeAlerts, setActiveAlerts] = useState<AreaAlertItem[]>([])
   const [panelExpanded, setPanelExpanded] = useState(false)
   const [isNavigating, setIsNavigating] = useState(false)
+  const [navStepIndex, setNavStepIndex] = useState(0)
+  const [recenterTrigger, setRecenterTrigger] = useState(0)
   const [mainView, setMainView] = useState<"map" | "weather">("map")
   const [weatherTheme, setWeatherTheme] = useState<"sunny" | "rainy" | "cloudy" | "night">("rainy")
   const [activeTab, setActiveTab] = useState<AppTab>("map")
@@ -194,9 +206,21 @@ function App() {
   }, [reportOpen])
 
   function toggleNavigation() {
-    setIsNavigating((current) => !current)
+    setIsNavigating((current) => {
+      const next = !current
+      if (next) {
+        setNavStepIndex(0)
+        setRecenterTrigger(Date.now())
+      }
+      return next
+    })
     setPanelExpanded(false)
     setActiveTab("map")
+  }
+
+  function handleStopNavigation() {
+    setIsNavigating(false)
+    setNavStepIndex(0)
   }
 
   function selectTab(tab: AppTab) {
@@ -204,7 +228,9 @@ function App() {
     setPanelExpanded(tab !== "map")
   }
 
-  const currentStep = navigationSteps[0]
+  const currentStep = navigationSteps[navStepIndex] ?? navigationSteps[0]
+  const nextStep = navigationSteps[navStepIndex + 1]
+  const activeRouteData = routesData[selectedRoute] ?? routesData.safe
 
   return (
     <main
@@ -235,7 +261,8 @@ function App() {
         <WeatherPage onThemeChange={setWeatherTheme} />
       ) : (
         <>
-          <div className="desktop-sidebar">
+          {!isNavigating && (
+            <div className="desktop-sidebar">
         <RouteSearch
           destination={destination}
           onSelectDestination={setDestination}
@@ -262,13 +289,18 @@ function App() {
           setForecastIndex={setForecastIndex}
           setSelectedRoute={setSelectedRoute}
         />
-      </div>
+            </div>
+          )}
 
       <section className="map-stage">
         <MapCanvas
           destination={destination}
           floodPoints={floodPoints}
+          isNavigating={isNavigating}
+          navStepIndex={navStepIndex}
+          navigationSteps={navigationSteps}
           origin={origin}
+          recenterTrigger={recenterTrigger}
           route={selectedRoute}
           routesData={routesData}
         />
@@ -314,18 +346,95 @@ function App() {
           )}
         </div>
 
-        {isNavigating && currentStep && (
-          <div className="next-turn-banner">
-            <span className="next-turn-icon">
-              <Icon name={currentStep.icon} size={26} />
-            </span>
-            <span className="next-turn-copy">
-              <small>Trong {currentStep.distance}</small>
-              <strong>
-                {currentStep.instruction} {currentStep.street}
-              </strong>
-            </span>
-            <span className="next-turn-then">Sau đó rẽ phải</span>
+        {isNavigating && (
+          <div className="google-nav-hud-top">
+            <div className="nav-hud-maneuver">
+              <div className={`nav-hud-turn-icon is-${currentStep?.icon || "straight"}`}>
+                <Icon name={currentStep?.icon || "straight"} size={32} />
+              </div>
+              <div className="nav-hud-instruction">
+                <span className="nav-hud-distance">Trong {currentStep?.distance || "150 m"}</span>
+                <h2 className="nav-hud-action">
+                  {currentStep ? `${currentStep.instruction} ${currentStep.street}` : "Tiếp tục di chuyển theo tuyến an toàn"}
+                </h2>
+                {nextStep && (
+                  <div className="nav-hud-next-step">
+                    <span className="nav-hud-next-label">Sau đó:</span>
+                    <span className="nav-hud-next-text">{nextStep.instruction} {nextStep.street} ({nextStep.distance})</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {navigationSteps.length > 1 && (
+              <div className="nav-hud-stepper">
+                <button
+                  type="button"
+                  className="hud-step-btn"
+                  disabled={navStepIndex <= 0}
+                  onClick={() => setNavStepIndex((prev) => Math.max(0, prev - 1))}
+                  title="Bước rẽ trước"
+                >
+                  <Icon name="chevron-left" size={18} />
+                  <span>Trước</span>
+                </button>
+                <span className="hud-step-indicator">
+                  Bước <strong>{navStepIndex + 1}</strong> / {navigationSteps.length}
+                </span>
+                <button
+                  type="button"
+                  className="hud-step-btn"
+                  disabled={navStepIndex >= navigationSteps.length - 1}
+                  onClick={() => setNavStepIndex((prev) => Math.min(navigationSteps.length - 1, prev + 1))}
+                  title="Bước rẽ tiếp theo"
+                >
+                  <span>Tiếp</span>
+                  <Icon name="chevron-right" size={18} />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {isNavigating && (
+          <div className="google-nav-float-actions">
+            <button
+              type="button"
+              className="nav-float-btn"
+              onClick={() => setRecenterTrigger(Date.now())}
+              title="Căn giữa xe"
+            >
+              <Icon name="location" size={20} />
+              <span>Căn giữa</span>
+            </button>
+          </div>
+        )}
+
+        {isNavigating && (
+          <div className="google-nav-hud-bottom">
+            <div className="nav-bottom-trip">
+              <div className="nav-trip-time">
+                <span className="nav-time-val">{activeRouteData.time || "12 phút"}</span>
+                <span className="nav-dot">·</span>
+                <span className="nav-dist-val">{activeRouteData.distance || "3,4 km"}</span>
+              </div>
+              <div className="nav-trip-eta">
+                <span>Dự kiến đến: <strong>{calculateEta(activeRouteData.time)}</strong></span>
+                <span className="nav-safety-badge">
+                  <Icon name="shield" size={14} />
+                  Tuyến an toàn · Đã tránh ngập
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              className="nav-bottom-exit-btn"
+              onClick={handleStopNavigation}
+              title="Kết thúc hành trình dẫn đường"
+            >
+              <Icon name="close" size={18} />
+              <span>Kết thúc</span>
+            </button>
           </div>
         )}
 
@@ -349,36 +458,38 @@ function App() {
         </span>
       </section>
 
-      <div className="mobile-panel">
-        <JourneyPanel
-          canSaveRoute={Boolean(origin && destination)}
-          expanded={panelExpanded}
-          focusSection={
-            activeTab === "tracking"
-              ? "forecast"
-              : activeTab === "saved"
-                ? "routes"
-                : null
-          }
-          forecastIndex={forecastIndex}
-          forecasts={forecasts}
-          isNavigating={isNavigating}
-          navigationSteps={navigationSteps}
-          onRemoveSavedRoute={handleRemoveSavedRoute}
-          onReport={() => setReportOpen(true)}
-          onSaveCurrentRoute={handleSaveCurrentRoute}
-          onSelectSavedRoute={handleSelectSavedRoute}
-          onStart={toggleNavigation}
-          routesData={routesData}
-          savedRoutes={savedRoutes}
-          selectedRoute={selectedRoute}
-          setExpanded={setPanelExpanded}
-          setForecastIndex={setForecastIndex}
-          setSelectedRoute={setSelectedRoute}
-        />
-      </div>
+      {!isNavigating && (
+        <div className="mobile-panel">
+          <JourneyPanel
+            canSaveRoute={Boolean(origin && destination)}
+            expanded={panelExpanded}
+            focusSection={
+              activeTab === "tracking"
+                ? "forecast"
+                : activeTab === "saved"
+                  ? "routes"
+                  : null
+            }
+            forecastIndex={forecastIndex}
+            forecasts={forecasts}
+            isNavigating={isNavigating}
+            navigationSteps={navigationSteps}
+            onRemoveSavedRoute={handleRemoveSavedRoute}
+            onReport={() => setReportOpen(true)}
+            onSaveCurrentRoute={handleSaveCurrentRoute}
+            onSelectSavedRoute={handleSelectSavedRoute}
+            onStart={toggleNavigation}
+            routesData={routesData}
+            savedRoutes={savedRoutes}
+            selectedRoute={selectedRoute}
+            setExpanded={setPanelExpanded}
+            setForecastIndex={setForecastIndex}
+            setSelectedRoute={setSelectedRoute}
+          />
+        </div>
+      )}
 
-      <BottomNav activeTab={activeTab} onSelect={selectTab} />
+      {!isNavigating && <BottomNav activeTab={activeTab} onSelect={selectTab} />}
         </>
       )}
 

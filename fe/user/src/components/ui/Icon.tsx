@@ -32,6 +32,8 @@ function Icon({
     ),
     check: <path d="m5 12 4 4L19 6" />,
     chevron: <path d="m7 10 5 5 5-5" />,
+    "chevron-left": <path d="m14 7-5 5 5 5" />,
+    "chevron-right": <path d="m10 7 5 5-5 5" />,
     clock: (
       <>
         <circle cx="12" cy="12" r="9" />

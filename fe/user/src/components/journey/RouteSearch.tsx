@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import Icon from "@/components/ui/Icon"
-import { matchDynamicPlacePool, searchPlacesApi } from "@/lib/api"
+import { matchDynamicPlacePool, reverseGeocodeApi, searchPlacesApi } from "@/lib/api"
 import type { RouteEndpoint } from "@/types"
 
 function RouteSearch({
@@ -25,6 +25,54 @@ function RouteSearch({
   const wrapRef = useRef<HTMLDivElement>(null)
   const swappingRef = useRef(false)
   const reqSeqRef = useRef(0)
+  const [gpsLoading, setGpsLoading] = useState(false)
+
+  const handleGetOriginGps = () => {
+    if (!navigator.geolocation) {
+      alert("Trình duyệt không hỗ trợ định vị GPS.")
+      return
+    }
+    setGpsLoading(true)
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const lat = pos.coords.latitude
+        const lng = pos.coords.longitude
+        try {
+          const geo = await reverseGeocodeApi(lat, lng)
+          const street = geo.location || "Vị trí của bạn"
+          const dist = geo.district || "TP.HCM"
+          const label = `Vị trí của bạn · ${street}`
+          const place: RouteEndpoint = {
+            label,
+            address: geo.location,
+            district: geo.district,
+            coords: [lng, lat],
+          }
+          onSelectOrigin(place)
+          setOriginText(label)
+          setActiveField(null)
+          setSuggestions([])
+        } catch {
+          const label = `Vị trí của bạn (${lat.toFixed(4)}, ${lng.toFixed(4)})`
+          const place: RouteEndpoint = {
+            label,
+            coords: [lng, lat],
+          }
+          onSelectOrigin(place)
+          setOriginText(label)
+          setActiveField(null)
+          setSuggestions([])
+        } finally {
+          setGpsLoading(false)
+        }
+      },
+      () => {
+        setGpsLoading(false)
+        alert("Không thể lấy vị trí GPS. Vui lòng cho phép quyền truy cập vị trí trên trình duyệt.")
+      },
+      { enableHighAccuracy: true, timeout: 8000 }
+    )
+  }
 
   useEffect(() => {
     if (swappingRef.current) return
@@ -213,7 +261,7 @@ function RouteSearch({
                 }}
                 onFocus={() => setActiveField("origin")}
                 onKeyDown={(e) => handleKeyDown(e, "origin")}
-                placeholder="Nhập điểm đi (tên đường, địa chỉ, địa danh…)"
+                placeholder="Nhập điểm đi hoặc bấm nút GPS…"
                 type="text"
                 value={originText}
               />
@@ -231,6 +279,19 @@ function RouteSearch({
                   <Icon name="close" size={14} />
                 </button>
               )}
+              <button
+                aria-label="Lấy vị trí GPS hiện tại làm điểm xuất phát"
+                className={`search-gps-btn ${gpsLoading ? "is-loading" : ""}`}
+                onClick={handleGetOriginGps}
+                title="Lấy vị trí GPS của bạn làm điểm xuất phát"
+                type="button"
+              >
+                {gpsLoading ? (
+                  <span className="search-gps-spinner" />
+                ) : (
+                  <Icon name="location" size={16} />
+                )}
+              </button>
             </div>
           </label>
           <span aria-hidden="true" className="search-divider" />
@@ -280,12 +341,29 @@ function RouteSearch({
         </button>
       </div>
 
-      {activeField && currentQuery.length >= 1 && (loading || suggestions.length > 0) && (
+      {activeField && (loading || suggestions.length > 0 || activeField === "origin") && (
         <ul
           aria-label="Gợi ý địa điểm thời gian thực tại TP.HCM"
           className="search-suggestions"
           role="listbox"
         >
+          {activeField === "origin" && (
+            <li key="gps-current-location">
+              <button
+                className="suggestion-item is-gps-item"
+                onClick={handleGetOriginGps}
+                type="button"
+              >
+                <span className="suggestion-icon gps-bubble">
+                  <Icon name="location" size={16} />
+                </span>
+                <span className="suggestion-copy">
+                  <strong>Vị trí hiện tại của bạn</strong>
+                  <small>Dùng GPS thiết bị làm điểm xuất phát</small>
+                </span>
+              </button>
+            </li>
+          )}
           {loading && suggestions.length === 0 ? (
             <li className="suggestion-loading">
               <span>Đang tìm địa điểm "{currentQuery}" tại TP.HCM…</span>
