@@ -166,7 +166,7 @@ importers:
 
   .: {}
 
-  apps/admin:
+  fe/admin:
     dependencies:
       lucide-react:
         specifier: ^1.59.0
@@ -206,7 +206,7 @@ importers:
         specifier: ^8.0.5
         version: 8.3.5(@types/node@22.20.5)(jiti@2.7.0)
 
-  apps/user:
+  fe/user:
     dependencies:
       maplibre-gl:
         specifier: ^6.14.0

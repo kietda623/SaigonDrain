@@ -1,13 +1,13 @@
-# SaigonDrain AI — Frontend demo
+# SaigonDrain AI — Demo FE/BE
 
-Hai giao diện demo cho sản phẩm **SaigonDrain AI** (ngập úng đô thị TP. Hồ Chí Minh), nằm trong một pnpm monorepo:
+Hai giao diện demo cho sản phẩm **SaigonDrain AI** (ngập úng đô thị TP. Hồ Chí Minh), nằm trong một pnpm monorepo với frontend tách riêng khỏi backend:
 
 | App | Mô tả | Dev URL |
 | --- | --- | --- |
-| `apps/user` | Bản đồ dẫn đường an toàn, dự báo mưa/ngập, báo cáo cộng đồng cho người dân | http://localhost:5173 |
-| `apps/admin` | Trung tâm điều hành: Tổng quan, Bản đồ, Báo cáo, Cảnh báo, Người dùng, Phân tích | http://localhost:5174 |
+| `fe/user` | Bản đồ dẫn đường an toàn, dự báo mưa/ngập, báo cáo cộng đồng cho người dân | http://localhost:5173 |
+| `fe/admin` | Trung tâm điều hành: Tổng quan, Bản đồ, Báo cáo, Cảnh báo, Người dùng, Phân tích | http://localhost:5174 |
 
-Dữ liệu là dữ liệu mô phỏng phục vụ demo, không có backend. App user dùng tile OpenStreetMap và OSRM công khai để vẽ tuyến đường.
+Dữ liệu là dữ liệu mô phỏng phục vụ demo; chưa có backend — `be/` là chỗ dành sẵn và chưa chứa mã server. App user dùng tile OpenStreetMap và OSRM công khai để vẽ tuyến đường.
 
 Giao diện theo hướng **“Mực nước”** — thước đo mực nước, đường đồng mức, kênh rạch Sài Gòn; teal sâu cho hành động, cát ấm và coral cho nguy cơ. Token, typography, component và chuẩn accessibility nằm trong [DESIGN.md](DESIGN.md); bối cảnh sản phẩm trong [PRODUCT.md](PRODUCT.md).
 
@@ -24,7 +24,7 @@ Giao diện theo hướng **“Mực nước”** — thước đo mực nước
 
 ```text
 .
-├─ apps/
+├─ fe/
 │  ├─ user/                 # React app, port 5173
 │  │  └─ src/
 │  │     ├─ components/     # layout, map, journey, report, ui
@@ -38,6 +38,8 @@ Giao diện theo hướng **“Mực nước”** — thước đo mực nước
 │        ├─ lib/            # analytics helpers
 │        ├─ types.ts
 │        └─ index.css
+├─ be/
+│  └─ README.md             # chỗ dành sẵn cho backend, chưa có server
 ├─ docs/
 │  ├─ saigondrain-product-brief.pdf
 │  └─ plans/
@@ -77,7 +79,7 @@ pnpm dev:user
 pnpm dev:admin
 ```
 
-Port được khai báo trong `apps/*/vite.config.ts` và có thể override bằng biến môi trường `PORT`:
+Port được khai báo trong `fe/*/vite.config.ts` và có thể override bằng biến môi trường `PORT`:
 
 ```bash
 # Git Bash / macOS / Linux

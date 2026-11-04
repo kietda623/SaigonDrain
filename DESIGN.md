@@ -1,9 +1,9 @@
 # SaigonDrain AI — Design System “Mực nước”
 
-Ghi chú thiết kế cho hai surface của SaigonDrain AI. Mọi giá trị dưới đây là nguồn thật trong `apps/*/src/index.css`; khi đổi token, cập nhật cả hai app và tài liệu này.
+Ghi chú thiết kế cho hai surface của SaigonDrain AI. Mọi giá trị dưới đây là nguồn thật trong `fe/*/src/index.css`; khi đổi token, cập nhật cả hai app và tài liệu này.
 
-- `apps/user` — bản đồ an toàn cho người đi đường (mobile-first, 5173).
-- `apps/admin` — trung tâm điều hành cho chuyên viên (desktop-first, 5174).
+- `fe/user` — bản đồ an toàn cho người đi đường (mobile-first, 5173).
+- `fe/admin` — trung tâm điều hành cho chuyên viên (desktop-first, 5174).
 
 ## 1. Ý tưởng thị giác
 
@@ -140,9 +140,9 @@ Header dính trên, hàng hover/focus rõ, số liệu căn phải, cột trạn
 
 ## 10. File nguồn
 
-- Token + component CSS: `apps/user/src/index.css`, `apps/admin/src/index.css`.
-- Gauge: `apps/user/src/components/ui/WaterGauge.tsx`.
-- Shell user: `apps/user/src/App.tsx`, `components/layout/*`, `components/journey/*`, `components/map/*`.
-- Shell admin: `apps/admin/src/App.tsx`, `components/layout/*`, `components/pages/*`.
-- Bản đồ admin: `apps/admin/src/components/map/OperationsMap.tsx`.
-- Số liệu suy ra: `apps/admin/src/lib/analytics.ts`.
+- Token + component CSS: `fe/user/src/index.css`, `fe/admin/src/index.css`.
+- Gauge: `fe/user/src/components/ui/WaterGauge.tsx`.
+- Shell user: `fe/user/src/App.tsx`, `components/layout/*`, `components/journey/*`, `components/map/*`.
+- Shell admin: `fe/admin/src/App.tsx`, `components/layout/*`, `components/pages/*`.
+- Bản đồ admin: `fe/admin/src/components/map/OperationsMap.tsx`.
+- Số liệu suy ra: `fe/admin/src/lib/analytics.ts`.

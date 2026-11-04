@@ -8,7 +8,7 @@ web
 
 ## Stack
 
-Monorepo pnpm hiện hữu: `apps/user` và `apps/admin`, React 19 + TypeScript + Vite 8 + Tailwind CSS v4. Không backend; toàn bộ dữ liệu là mock trong `src/data`.
+Monorepo pnpm hiện hữu: `fe/user` và `fe/admin`, React 19 + TypeScript + Vite 8 + Tailwind CSS v4. Chưa có backend; `be/` là chỗ dành sẵn, toàn bộ dữ liệu là mock trong `fe/*/src/data`.
 
 ## Users
 
@@ -47,7 +47,7 @@ Không chỉ là bản đồ chỉ đường hay bảng giám sát: cùng một 
 ## Evidence on Hand
 
 - Brief sản phẩm: `docs/saigondrain-product-brief.pdf` (4 trụ cột: giám sát mưa/radar, nguy cơ tuyến đường, dẫn đường an toàn, báo cáo cộng đồng).
-- Mock data thật của demo trong `apps/*/src/data`.
+- Mock data thật của demo trong `fe/*/src/data`.
 - Không có ảnh thật, testimonial, số liệu khách hàng hay benchmark; không được bịa thêm.
 
 ## Product Principles

@@ -2,12 +2,13 @@
 
 ## Repo
 
-SaigonDrain AI frontend demo — pnpm monorepo with two independent React apps:
+SaigonDrain AI demo — pnpm monorepo with two independent React apps under `fe/` and a reserved `be/` folder:
 
-- `apps/user` — public map/navigation experience, port `5173`
-- `apps/admin` — operations dashboard, port `5174`
+- `fe/user` — public map/navigation experience, port `5173`
+- `fe/admin` — operations dashboard, port `5174`
+- `be/` — placeholder for a future backend; no server, API, database or auth exists yet
 
-Both apps are React 19 + TypeScript + Vite 8 + Tailwind CSS v4. No backend; all data is mocked in `src/data`.
+Both apps are React 19 + TypeScript + Vite 8 + Tailwind CSS v4. The demo is frontend-only; all data is mocked in `fe/*/src/data`.
 
 ## Commands
 
