@@ -133,7 +133,21 @@ export class JourneyService {
       }
 
       const scoredRoutes = rawRoutes.map((route, idx) => {
-        const coords: number[][] = route.geometry?.coordinates ?? [];
+        const rawCoords: number[][] = route.geometry?.coordinates ?? [];
+        const coords: number[][] = [...rawCoords];
+
+        // Tự động kết nối vị trí hẻm với trục đường
+        if (coords.length > 0) {
+          const startDist = this.haversineMeters(fromLat, fromLng, coords[0][1], coords[0][0]);
+          if (startDist > 4) {
+            coords.unshift([fromLng, fromLat]);
+          }
+          const endDist = this.haversineMeters(toLat, toLng, coords[coords.length - 1][1], coords[coords.length - 1][0]);
+          if (endDist > 4) {
+            coords.push([toLng, toLat]);
+          }
+        }
+
         let riskPenalty = 0;
         const nearbyFloodLabels = new Set<string>();
 
@@ -158,14 +172,15 @@ export class JourneyService {
         const distanceKm = ((route.distance ?? 3400) / 1000).toFixed(1).replace('.', ',');
 
         const rawSteps: any[] = route.legs?.[0]?.steps ?? [];
-        const navigationSteps: NavigationStepItem[] = rawSteps
-          .filter((s) => s.name || s.distance > 30)
-          .slice(0, 6)
+        const startDist = rawCoords.length > 0
+          ? this.haversineMeters(fromLat, fromLng, rawCoords[0][1], rawCoords[0][0])
+          : 0;
+
+        const mainSteps: NavigationStepItem[] = rawSteps
+          .filter((s) => s.name || s.distance > 15)
           .map((s) => {
             const modifier: string = s.maneuver?.modifier || '';
-            const icon: 'turn-left' | 'turn-right' | 'straight' = modifier.includes(
-              'left',
-            )
+            const icon: 'turn-left' | 'turn-right' | 'straight' = modifier.includes('left')
               ? 'turn-left'
               : modifier.includes('right')
                 ? 'turn-right'
@@ -180,9 +195,21 @@ export class JourneyService {
               icon,
               instruction,
               street: s.name || 'Trục đường chính',
-              distance: `${Math.max(50, Math.round(s.distance ?? 200))} m`,
+              distance: `${Math.max(30, Math.round(s.distance ?? 100))} m`,
             };
           });
+
+        let navigationSteps: NavigationStepItem[] = [];
+        if (startDist > 8) {
+          const firstRoad = rawSteps[0]?.name || mainSteps[0]?.street || 'trục đường chính';
+          navigationSteps.push({
+            icon: 'straight',
+            instruction: 'Từ vị trí trong hẻm, đi ra',
+            street: `${firstRoad} (${Math.round(startDist)} m)`,
+            distance: `Trong ${Math.round(startDist)} m`,
+          });
+        }
+        navigationSteps = [...navigationSteps, ...mainSteps].slice(0, 6);
 
         return {
           index: idx,

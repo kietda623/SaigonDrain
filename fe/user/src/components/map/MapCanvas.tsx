@@ -293,6 +293,31 @@ function MapCanvas({
         }
       }
 
+      // Tự động kết nối nét vẽ đường từ vị trí xuất phát trong hẻm ra đường chính
+      if (origCoords && safeCoords.length > 0) {
+        const dx = origCoords[0] - safeCoords[0][0];
+        const dy = origCoords[1] - safeCoords[0][1];
+        if (dx * dx + dy * dy > 0.00000004) {
+          safeCoords = [origCoords, ...safeCoords];
+        }
+      }
+      if (destCoords && safeCoords.length > 0) {
+        const lastIdx = safeCoords.length - 1;
+        const dx = destCoords[0] - safeCoords[lastIdx][0];
+        const dy = destCoords[1] - safeCoords[lastIdx][1];
+        if (dx * dx + dy * dy > 0.00000004) {
+          safeCoords = [...safeCoords, destCoords];
+        }
+      }
+
+      if (origCoords && altCoords.length > 0) {
+        const dx = origCoords[0] - altCoords[0][0];
+        const dy = origCoords[1] - altCoords[0][1];
+        if (dx * dx + dy * dy > 0.00000004) {
+          altCoords = [origCoords, ...altCoords];
+        }
+      }
+
       const currentMap = mapRef.current
       if (!active || !currentMap) return
 

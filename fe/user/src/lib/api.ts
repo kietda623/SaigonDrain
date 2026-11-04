@@ -660,10 +660,29 @@ export async function fetchJourneyRoutes(
         const distanceKm = ((primaryRoute.distance ?? 3000) / 1000)
           .toFixed(1)
           .replace(".", ",")
+        const rawCoords: number[][] = [...(primaryRoute.geometry?.coordinates ?? [])]
+        const snapDist = rawCoords.length > 0
+          ? Math.round(
+              6371000 *
+                2 *
+                Math.asin(
+                  Math.sqrt(
+                    Math.sin(((rawCoords[0][1] - originCoords[1]) * Math.PI) / 360) ** 2 +
+                      Math.cos((originCoords[1] * Math.PI) / 180) *
+                        Math.cos((rawCoords[0][1] * Math.PI) / 180) *
+                        Math.sin(((rawCoords[0][0] - originCoords[0]) * Math.PI) / 360) ** 2,
+                  ),
+                ),
+            )
+          : 0
+
+        if (snapDist > 4) {
+          rawCoords.unshift(originCoords)
+        }
+
         const rawSteps: any[] = primaryRoute.legs?.[0]?.steps ?? []
-        const steps: NavigationStep[] = rawSteps
-          .filter((s) => s.name || s.distance > 30)
-          .slice(0, 7)
+        const mainSteps: NavigationStep[] = rawSteps
+          .filter((s) => s.name || s.distance > 15)
           .map((s) => {
             const modifier: string = s.maneuver?.modifier || ""
             const icon = modifier.includes("left")
@@ -681,9 +700,21 @@ export async function fetchJourneyRoutes(
               icon,
               instruction,
               street: s.name || "Trục đường chính",
-              distance: `${Math.max(50, Math.round(s.distance ?? 100))} m`,
+              distance: `${Math.max(30, Math.round(s.distance ?? 100))} m`,
             }
           })
+
+        const steps: NavigationStep[] = []
+        if (snapDist > 8) {
+          const firstRoad = rawSteps[0]?.name || mainSteps[0]?.street || "trục đường chính"
+          steps.push({
+            icon: "straight",
+            instruction: "Từ vị trí trong hẻm, đi thẳng ra",
+            street: `${firstRoad} (${snapDist} m)`,
+            distance: `Trong ${snapDist} m`,
+          })
+        }
+        steps.push(...mainSteps.slice(0, 6))
 
         const safeRoute: RouteItem = {
           id: "safe",
@@ -692,7 +723,7 @@ export async function fetchJourneyRoutes(
           distance: `${distanceKm} km`,
           badge: "Nhanh nhất",
           detail: `Lộ trình theo các trục đường thực tế (${distanceKm} km, khoảng ${durationMinutes} phút di chuyển).`,
-          coordinates: primaryRoute.geometry?.coordinates,
+          coordinates: rawCoords,
         }
 
         return {
