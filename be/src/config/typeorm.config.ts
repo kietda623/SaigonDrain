@@ -2,7 +2,6 @@ import { ConfigService } from '@nestjs/config';
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { Logger } from '@nestjs/common';
 import { Client } from 'pg';
-import * as path from 'path';
 
 const logger = new Logger('TypeOrmConfig');
 
@@ -19,7 +18,7 @@ async function verifyAndEnsurePostgresDatabase(
     user,
     password,
     database: 'postgres',
-    connectionTimeoutMillis: 2000,
+    connectionTimeoutMillis: 3000,
   });
 
   try {
@@ -48,7 +47,6 @@ async function verifyAndEnsurePostgresDatabase(
 export async function createTypeOrmOptions(
   configService: ConfigService,
 ): Promise<TypeOrmModuleOptions> {
-  const dbType = configService.get<string>('DB_TYPE', 'postgres');
   const host = configService.get<string>('DB_HOST', 'localhost');
   const port = Number(configService.get<number>('DB_PORT', 5432));
   const username = configService.get<string>('DB_USERNAME', 'postgres');
@@ -57,40 +55,31 @@ export async function createTypeOrmOptions(
   const synchronize =
     configService.get<string>('DB_SYNCHRONIZE', 'true') === 'true';
 
-  if (dbType === 'postgres') {
-    const check = await verifyAndEnsurePostgresDatabase(
-      host,
-      port,
-      username,
-      password,
-      database,
+  const check = await verifyAndEnsurePostgresDatabase(
+    host,
+    port,
+    username,
+    password,
+    database,
+  );
+  if (check.ok) {
+    logger.log(
+      `Đã kết nối thành công tới PostgreSQL tại ${host}:${port}/${database}`,
     );
-    if (check.ok) {
-      logger.log(`Đã kết nối thành công tới PostgreSQL tại ${host}:${port}/${database}`);
-      return {
-        type: 'postgres',
-        host,
-        port,
-        username,
-        password,
-        database,
-        autoLoadEntities: true,
-        synchronize,
-      };
-    }
-
-    logger.warn(
-      `Không thể đăng nhập PostgreSQL tại ${host}:${port} (${check.reason}). ` +
-        `Nếu muốn dùng PostgreSQL trên máy, hãy sửa đúng DB_PASSWORD trong file .env. ` +
-        `Hệ thống đang tự động dùng SQLite cục bộ (saigondrain.sqlite) để chạy ngay lập tức!`,
+  } else {
+    logger.error(
+      `Không thể kết nối PostgreSQL tại ${host}:${port} (${check.reason}). Vui lòng kiểm tra cấu hình DB_PASSWORD trong .env!`,
     );
   }
 
   return {
-    type: 'sqljs',
-    location: path.resolve(process.cwd(), 'saigondrain.sqlite'),
-    autoSave: true,
+    type: 'postgres',
+    host,
+    port,
+    username,
+    password,
+    database,
     autoLoadEntities: true,
-    synchronize: true,
+    synchronize,
   };
 }

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import Icon from "@/components/ui/Icon"
-import { instantMatchHcmcPlaces, searchPlacesApi } from "@/lib/api"
+import { matchDynamicPlacePool, searchPlacesApi } from "@/lib/api"
 import type { RouteEndpoint } from "@/types"
 
 function RouteSearch({
@@ -24,6 +24,7 @@ function RouteSearch({
   const [highlightIndex, setHighlightIndex] = useState(-1)
   const wrapRef = useRef<HTMLDivElement>(null)
   const swappingRef = useRef(false)
+  const reqSeqRef = useRef(0)
 
   useEffect(() => {
     if (swappingRef.current) return
@@ -85,34 +86,29 @@ function RouteSearch({
       return
     }
 
-    // 1. Phản hồi tức thì (0ms) ngay từ ký tự đầu tiên bằng bộ chỉ mục địa danh & đường phố TP.HCM
-    const instant = instantMatchHcmcPlaces(query)
-    if (instant.length > 0) {
-      setSuggestions(instant)
+    // 1. Lọc tức thì (0ms) từ dữ liệu động đã tải từ PostgreSQL & Bản đồ trực tuyến
+    const dynamicMatches = matchDynamicPlacePool(query)
+    if (dynamicMatches.length > 0) {
+      setSuggestions(dynamicMatches)
       setHighlightIndex(0)
       setLoading(false)
     } else {
-      setLoading(query.length >= 2)
+      setSuggestions([])
+      setHighlightIndex(-1)
+      setLoading(true)
     }
 
-    if (query.length < 2) {
-      return
-    }
-
-    // 2. Truy vấn mở rộng địa chỉ/số nhà thực tế với debounce siêu ngắn (70ms) + AbortController
-    const controller = new AbortController()
-    let mounted = true
+    // 2. Truy vấn mở rộng trực tiếp API bản đồ thực tế với debounce 25ms (không hủy giữa chừng để làm giàu cache)
+    const seq = ++reqSeqRef.current
     const timer = window.setTimeout(async () => {
-      const results = await searchPlacesApi(query, controller.signal)
-      if (!mounted || controller.signal.aborted) return
+      const results = await searchPlacesApi(query)
+      if (reqSeqRef.current !== seq) return
       setSuggestions(results)
       setHighlightIndex(results.length > 0 ? 0 : -1)
       setLoading(false)
-    }, 70)
+    }, 25)
 
     return () => {
-      mounted = false
-      controller.abort()
       window.clearTimeout(timer)
     }
   }, [activeField, originText, destText, origin?.label, destination?.label])

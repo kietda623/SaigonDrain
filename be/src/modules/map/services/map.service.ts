@@ -159,29 +159,56 @@ export class MapService {
       lng: number;
     }> = [];
 
-    // 1. ArcGIS World Geocoding Service (nhận diện cực tốt địa danh, trường đại học, số nhà, tên đường tại TP.HCM, phản hồi ~150ms)
-    const arcgisRes = await firstValueFrom(
-      this.httpService.get(
-        'https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates',
-        {
-          params: {
-            SingleLine: `${cleanKeyword}, Hồ Chí Minh`,
-            f: 'json',
-            countryCode: 'VNM',
-            location: '106.7009,10.7769',
-            searchExtent: '106.35,10.35,107.05,11.16',
-            outFields: 'PlaceName,Place_addr,StAddr,Nbrhd,District,City,Subregion',
-            maxLocations: limit,
+    // 1. Truy vấn song song từ PostgreSQL map_points và ArcGIS World Geocoding Service
+    const [dbPoints, arcgisRes] = await Promise.all([
+      this.mapPointRepo.find().catch(() => []),
+      firstValueFrom(
+        this.httpService.get(
+          'https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates',
+          {
+            params: {
+              SingleLine: `${cleanKeyword}, Hồ Chí Minh`,
+              f: 'json',
+              countryCode: 'VNM',
+              location: '106.7009,10.7769',
+              searchExtent: '106.35,10.35,107.05,11.16',
+              outFields: 'PlaceName,Place_addr,StAddr,Nbrhd,District,City,Subregion',
+              maxLocations: limit,
+            },
+            timeout: 1500,
           },
-          timeout: 1800,
-        },
-      ),
-    ).catch(() => null);
+        ),
+      ).catch(() => null),
+    ]);
+
+    const normKeyword = cleanKeyword
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/đ/g, 'd');
+
+    for (const pt of dbPoints) {
+      const normLoc = (pt.label || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/đ/g, 'd');
+      if (normLoc.includes(normKeyword)) {
+        results.push({
+          name: pt.label,
+          address: `${pt.label}, ${pt.district || 'TP. Hồ Chí Minh'}`,
+          street: pt.label,
+          district: pt.district || 'TP. Hồ Chí Minh',
+          lat: pt.lat,
+          lng: pt.lng,
+        });
+      }
+    }
 
     const candidates = arcgisRes?.data?.candidates ?? [];
-    // Chỉ gọi thêm Photon OSM nếu ArcGIS trả về ít hơn 3 kết quả (tránh bị Photon ở châu Âu làm chậm 2-3 giây)
+    // Chỉ gọi thêm Photon OSM nếu tổng kết quả < 2
     const photonRes =
-      candidates.length >= 3
+      results.length + candidates.length >= 2
         ? null
         : await firstValueFrom(
             this.httpService.get(`${photonBase}/api/`, {
@@ -191,7 +218,7 @@ export class MapService {
                 lon: 106.7009,
                 limit,
               },
-              timeout: 1200,
+              timeout: 1000,
             }),
           ).catch(() => null);
     for (const c of candidates) {

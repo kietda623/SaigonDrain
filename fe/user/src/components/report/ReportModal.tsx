@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import Icon from "@/components/ui/Icon"
 import {
   createCitizenReport,
-  instantMatchHcmcPlaces,
+  matchDynamicPlacePool,
   reverseGeocodeApi,
   searchPlacesApi,
 } from "@/lib/api"
@@ -103,21 +103,18 @@ function ReportModal({
       setLocSuggestions([])
       return
     }
-    const instant = instantMatchHcmcPlaces(clean)
-    if (instant.length > 0) {
-      setLocSuggestions(instant)
+    const dynamicMatches = matchDynamicPlacePool(clean)
+    if (dynamicMatches.length > 0) {
+      setLocSuggestions(dynamicMatches)
     }
-    if (clean.length < 2) return
 
-    const controller = new AbortController()
     let active = true
     const timer = window.setTimeout(async () => {
-      const results = await searchPlacesApi(clean, controller.signal)
-      if (active && !controller.signal.aborted) setLocSuggestions(results)
-    }, 70)
+      const results = await searchPlacesApi(clean)
+      if (active) setLocSuggestions(results)
+    }, 25)
     return () => {
       active = false
-      controller.abort()
       window.clearTimeout(timer)
     }
   }, [locationText, showSuggestions])
