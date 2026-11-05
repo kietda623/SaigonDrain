@@ -47,13 +47,30 @@ async function verifyAndEnsurePostgresDatabase(
 export async function createTypeOrmOptions(
   configService: ConfigService,
 ): Promise<TypeOrmModuleOptions> {
+  const databaseUrl = configService.get<string>('DATABASE_URL');
+  const synchronize =
+    configService.get<string>('DB_SYNCHRONIZE', 'true') === 'true';
+
+  if (databaseUrl) {
+    const isCloud =
+      databaseUrl.includes('neon') ||
+      databaseUrl.includes('supabase') ||
+      databaseUrl.includes('sslmode=require');
+    logger.log('Đang kết nối PostgreSQL qua DATABASE_URL...');
+    return {
+      type: 'postgres',
+      url: databaseUrl,
+      ssl: isCloud ? { rejectUnauthorized: false } : undefined,
+      autoLoadEntities: true,
+      synchronize,
+    };
+  }
+
   const host = configService.get<string>('DB_HOST', 'localhost');
   const port = Number(configService.get<number>('DB_PORT', 5432));
   const username = configService.get<string>('DB_USERNAME', 'postgres');
   const password = configService.get<string>('DB_PASSWORD', 'postgres');
   const database = configService.get<string>('DB_DATABASE', 'saigondrain');
-  const synchronize =
-    configService.get<string>('DB_SYNCHRONIZE', 'true') === 'true';
 
   const check = await verifyAndEnsurePostgresDatabase(
     host,
