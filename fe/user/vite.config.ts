@@ -19,6 +19,19 @@ export default defineConfig({
       "/api": {
         target: process.env.VITE_BACKEND_URL ?? "http://localhost:3000",
         changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on("error", (_err, _req, res) => {
+            if ("writeHead" in res && !res.headersSent) {
+              res.writeHead(502, { "Content-Type": "application/json" })
+              res.end(
+                JSON.stringify({
+                  error: "Backend server offline",
+                  code: "ECONNREFUSED",
+                }),
+              )
+            }
+          })
+        },
       },
     },
   },
@@ -30,6 +43,19 @@ export default defineConfig({
       "/api": {
         target: process.env.VITE_BACKEND_URL ?? "http://localhost:3000",
         changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on("error", (_err, _req, res) => {
+            if ("writeHead" in res && !res.headersSent) {
+              res.writeHead(502, { "Content-Type": "application/json" })
+              res.end(
+                JSON.stringify({
+                  error: "Backend server offline",
+                  code: "ECONNREFUSED",
+                }),
+              )
+            }
+          })
+        },
       },
     },
   },
