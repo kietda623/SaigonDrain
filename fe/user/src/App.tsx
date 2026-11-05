@@ -76,6 +76,11 @@ function App() {
   const [isNavigating, setIsNavigating] = useState(false)
   const [navStepIndex, setNavStepIndex] = useState(0)
   const [recenterTrigger, setRecenterTrigger] = useState(0)
+  const [liveDistanceToTurn, setLiveDistanceToTurn] = useState<number | null>(null)
+  const [liveSpeed, setLiveSpeed] = useState<number>(32)
+  const [liveRemainingKm, setLiveRemainingKm] = useState<string | null>(null)
+  const [liveRemainingMin, setLiveRemainingMin] = useState<number | null>(null)
+  const [isTrackingPaused, setIsTrackingPaused] = useState<boolean>(false)
   const [mainView, setMainView] = useState<"map" | "weather">("map")
   const [weatherTheme, setWeatherTheme] = useState<"sunny" | "rainy" | "cloudy" | "night">("rainy")
   const [activeTab, setActiveTab] = useState<AppTab>("map")
@@ -210,6 +215,10 @@ function App() {
       const next = !current
       if (next) {
         setNavStepIndex(0)
+        setIsTrackingPaused(false)
+        setLiveDistanceToTurn(null)
+        setLiveRemainingKm(null)
+        setLiveRemainingMin(null)
         setRecenterTrigger(Date.now())
       }
       return next
@@ -221,6 +230,7 @@ function App() {
   function handleStopNavigation() {
     setIsNavigating(false)
     setNavStepIndex(0)
+    setIsTrackingPaused(false)
   }
 
   function selectTab(tab: AppTab) {
@@ -297,8 +307,18 @@ function App() {
           destination={destination}
           floodPoints={floodPoints}
           isNavigating={isNavigating}
+          isTrackingPaused={isTrackingPaused}
           navStepIndex={navStepIndex}
           navigationSteps={navigationSteps}
+          onProgressUpdate={(info) => {
+            setLiveDistanceToTurn(info.distanceToTurnM)
+            setLiveSpeed(info.speedKmh)
+            setLiveRemainingKm((info.remainingKmM / 1000).toFixed(1).replace(".", ","))
+            setLiveRemainingMin(info.remainingMinutes)
+          }}
+          onStepChange={(newStep) => {
+            setNavStepIndex(newStep)
+          }}
           origin={origin}
           recenterTrigger={recenterTrigger}
           route={selectedRoute}
@@ -353,7 +373,15 @@ function App() {
                 <Icon name={currentStep?.icon || "straight"} size={32} />
               </div>
               <div className="nav-hud-instruction">
-                <span className="nav-hud-distance">Trong {currentStep?.distance || "150 m"}</span>
+                <div className="nav-hud-top-meta">
+                  <span className="nav-hud-distance">
+                    {liveDistanceToTurn !== null ? `Trong ${liveDistanceToTurn} m` : `Trong ${currentStep?.distance || "150 m"}`}
+                  </span>
+                  <span className={`live-tracking-badge ${isTrackingPaused ? "is-paused" : "is-active"}`}>
+                    <span className="live-tracking-dot" />
+                    {isTrackingPaused ? "Tạm dừng tracking" : "Đang tracking liên tục"}
+                  </span>
+                </div>
                 <h2 className="nav-hud-action">
                   {currentStep ? `${currentStep.instruction} ${currentStep.street}` : "Tiếp tục di chuyển theo tuyến an toàn"}
                 </h2>
@@ -400,12 +428,57 @@ function App() {
           <div className="google-nav-float-actions">
             <button
               type="button"
+              className={`nav-float-btn ${isTrackingPaused ? "is-paused" : "is-tracking"}`}
+              onClick={() => setIsTrackingPaused((prev) => !prev)}
+              title={isTrackingPaused ? "Tiếp tục tracking" : "Tạm dừng tracking"}
+            >
+              <Icon name={isTrackingPaused ? "arrow" : "check"} size={18} />
+              <span>{isTrackingPaused ? "Tiếp tục" : "Tạm dừng"}</span>
+            </button>
+            <button
+              type="button"
               className="nav-float-btn"
               onClick={() => setRecenterTrigger(Date.now())}
               title="Căn giữa xe"
             >
               <Icon name="location" size={20} />
               <span>Căn giữa</span>
+            </button>
+            <div className="nav-speed-badge">
+              <strong>{isTrackingPaused ? 0 : liveSpeed}</strong>
+              <small>km/h</small>
+            </div>
+          </div>
+        )}
+
+        {isNavigating && (
+          <div className="google-nav-hud-bottom">
+            <div className="nav-bottom-trip">
+              <div className="nav-trip-time">
+                <span className="nav-time-val">
+                  {liveRemainingMin !== null ? `${liveRemainingMin} phút` : (activeRouteData.time || "12 phút")}
+                </span>
+                <span className="nav-dot">·</span>
+                <span className="nav-dist-val">
+                  {liveRemainingKm !== null ? `${liveRemainingKm} km` : (activeRouteData.distance || "3,4 km")}
+                </span>
+              </div>
+              <div className="nav-trip-eta">
+                <span>Dự kiến đến: <strong>{calculateEta(liveRemainingMin ? `${liveRemainingMin} phút` : activeRouteData.time)}</strong></span>
+                <span className="nav-safety-badge">
+                  <Icon name="shield" size={14} />
+                  Tuyến an toàn · Đã tránh ngập
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              className="nav-bottom-exit-btn"
+              onClick={handleStopNavigation}
+              title="Kết thúc hành trình dẫn đường"
+            >
+              <Icon name="close" size={18} />
+              <span>Kết thúc</span>
             </button>
           </div>
         )}
