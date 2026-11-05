@@ -733,15 +733,90 @@ export async function fetchForecastSlots(): Promise<{
 }> {
   try {
     const res = await fetch(`${API_BASE}/journey/forecasts`)
-    if (!res.ok) throw new Error("Failed to fetch forecasts")
-    const data = (await res.json()) as ForecastSlot[]
-    if (Array.isArray(data)) {
-      return { slots: data, live: true }
+    if (res.ok) {
+      const data = (await res.json()) as ForecastSlot[]
+      if (Array.isArray(data) && data.length > 0) {
+        // Loại bỏ nếu dữ liệu là mock 34mm cũ
+        const hasLegacyMock = data.some(
+          (s) => s.id === "30" && (s.rain === "34 mm" || (s as any).rainMm === 34)
+        )
+        if (!hasLegacyMock) {
+          return { slots: data, live: true }
+        }
+      }
     }
   } catch {
-    // ignore
+    // ignore backend error
   }
-  return { slots: [], live: false }
+
+  // Fallback: Gọi trực tiếp Open-Meteo API thời gian thực trên client
+  try {
+    const real = await fetchFullRealWeather(10.7769, 106.7009, "Hồ Chí Minh")
+    const hourly = real.hourly || []
+    const nowRain = Math.round((hourly[0]?.rainMm ?? 0) * 10) / 10
+    const slot30Rain = Math.round(
+      ((hourly[0]?.rainMm ?? 0) * 0.5 + (hourly[1]?.rainMm ?? 0) * 0.5) * 10
+    ) / 10
+    const slot60Rain = Math.round((hourly[1]?.rainMm ?? 0) * 10) / 10
+    const slot90Rain = Math.round(
+      ((hourly[1]?.rainMm ?? 0) * 0.5 + (hourly[2]?.rainMm ?? 0) * 0.5) * 10
+    ) / 10
+
+    const calcRisk = (rain: number): { risk: string; zone: 0 | 1 | 2 } => {
+      if (rain >= 45) return { risk: "Rất cao", zone: 2 }
+      if (rain >= 25) return { risk: "Cao", zone: 1 }
+      if (rain >= 10) return { risk: "Trung bình", zone: 1 }
+      return { risk: "Thấp", zone: 0 }
+    }
+
+    const rNow = calcRisk(nowRain)
+    const r30 = calcRisk(slot30Rain)
+    const r60 = calcRisk(slot60Rain)
+    const r90 = calcRisk(slot90Rain)
+
+    const slots: ForecastSlot[] = [
+      {
+        id: "now",
+        label: "Hiện tại",
+        rain: `${nowRain} mm`,
+        risk: rNow.risk,
+        zone: rNow.zone,
+      },
+      {
+        id: "30",
+        label: "+30 phút",
+        rain: `${slot30Rain} mm`,
+        risk: r30.risk,
+        zone: r30.zone,
+      },
+      {
+        id: "60",
+        label: "+60 phút",
+        rain: `${slot60Rain} mm`,
+        risk: r60.risk,
+        zone: r60.zone,
+      },
+      {
+        id: "90",
+        label: "+90 phút",
+        rain: `${slot90Rain} mm`,
+        risk: slot90Rain < slot60Rain && slot60Rain >= 10 ? "Giảm dần" : r90.risk,
+        zone: r90.zone,
+      },
+    ]
+
+    return { slots, live: true }
+  } catch {
+    return {
+      slots: [
+        { id: "now", label: "Hiện tại", rain: "0 mm", risk: "Thấp", zone: 0 },
+        { id: "30", label: "+30 phút", rain: "0 mm", risk: "Thấp", zone: 0 },
+        { id: "60", label: "+60 phút", rain: "0 mm", risk: "Thấp", zone: 0 },
+        { id: "90", label: "+90 phút", rain: "0 mm", risk: "Thấp", zone: 0 },
+      ],
+      live: false,
+    }
+  }
 }
 
 export async function fetchJourneyRoutes(

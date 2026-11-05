@@ -38,12 +38,13 @@ export class SeedService implements OnApplicationBootstrap {
   async onApplicationBootstrap() {
     const p1 = await this.mapPointRepo.findOne({ where: { id: 'p1' } });
     const count = await this.mapPointRepo.count();
-    if (p1 || count < 50) {
-      this.logger.log('Phát hiện dữ liệu mẫu cũ — đang dọn sạch và nạp 250 điểm ngập khoa học IRD (2002-2026)...');
+    const slot30 = await this.forecastRepo.findOne({ where: { id: '30' } });
+    if (p1 || count < 50 || slot30?.rainMm === 34) {
+      this.logger.log('Phát hiện dữ liệu mẫu cũ hoặc mốc dự báo cứng 34mm — đang nạp lại dữ liệu chuẩn...');
       await this.mapPointRepo.clear();
       await this.forecastRepo.clear();
       await this.seedAll();
-      this.logger.log('Khởi tạo 250 điểm thực nghiệm IRD hoàn tất!');
+      this.logger.log('Khởi tạo 250 điểm thực nghiệm IRD và mốc dự báo thời gian thực hoàn tất!');
     }
   }
 
@@ -377,8 +378,8 @@ export class SeedService implements OnApplicationBootstrap {
       {
         id: 'now',
         label: 'Hiện tại',
-        rain: '8 mm',
-        rainMm: 8,
+        rain: '0 mm',
+        rainMm: 0,
         risk: 'Thấp',
         zone: 0,
         sortOrder: 0,
@@ -386,28 +387,28 @@ export class SeedService implements OnApplicationBootstrap {
       {
         id: '30',
         label: '+30 phút',
-        rain: '34 mm',
-        rainMm: 34,
-        risk: 'Cao',
-        zone: 1,
+        rain: '0 mm',
+        rainMm: 0,
+        risk: 'Thấp',
+        zone: 0,
         sortOrder: 1,
       },
       {
         id: '60',
         label: '+60 phút',
-        rain: '51 mm',
-        rainMm: 51,
-        risk: 'Rất cao',
-        zone: 2,
+        rain: '0 mm',
+        rainMm: 0,
+        risk: 'Thấp',
+        zone: 0,
         sortOrder: 2,
       },
       {
         id: '90',
         label: '+90 phút',
-        rain: '23 mm',
-        rainMm: 23,
-        risk: 'Giảm dần',
-        zone: 1,
+        rain: '0 mm',
+        rainMm: 0,
+        risk: 'Thấp',
+        zone: 0,
         sortOrder: 3,
       },
     ];

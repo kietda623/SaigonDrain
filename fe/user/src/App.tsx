@@ -40,13 +40,14 @@ import type {
   WeatherSnapshot,
 } from "@/types"
 
-const EMPTY_FORECAST: ForecastSlot = {
-  id: "now",
-  label: "Hiện tại",
-  rain: "0 mm",
-  risk: "Thấp",
-  zone: 0,
-}
+const DEFAULT_FORECAST_SLOTS: ForecastSlot[] = [
+  { id: "now", label: "Hiện tại", rain: "0 mm", risk: "Thấp", zone: 0 },
+  { id: "30", label: "+30 phút", rain: "0 mm", risk: "Thấp", zone: 0 },
+  { id: "60", label: "+60 phút", rain: "0 mm", risk: "Thấp", zone: 0 },
+  { id: "90", label: "+90 phút", rain: "0 mm", risk: "Thấp", zone: 0 },
+]
+
+const EMPTY_FORECAST: ForecastSlot = DEFAULT_FORECAST_SLOTS[0]
 
 function calculateEta(minutesStr?: string): string {
   const match = (minutesStr || "").match(/\d+/)
@@ -90,7 +91,7 @@ function App() {
   const [destination, setDestination] = useState<RouteEndpoint | null>(null)
   const [floodPoints, setFloodPoints] = useState<MapFloodPoint[]>([])
 
-  const [forecasts, setForecasts] = useState<ForecastSlot[]>([])
+  const [forecasts, setForecasts] = useState<ForecastSlot[]>(DEFAULT_FORECAST_SLOTS)
   const [routesData, setRoutesData] = useState<Record<RouteId, RouteItem>>({
     safe: { ...EMPTY_ROUTES.safe },
     balanced: { ...EMPTY_ROUTES.balanced },
