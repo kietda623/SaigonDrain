@@ -243,13 +243,25 @@ function WeatherPage({
   // Tải thời tiết thực tế từ Open-Meteo khi mở tab
   useEffect(() => {
     let active = true
-    async function loadInitial() {
+        async function loadInitial() {
       setLoading(true)
-      const res = await fetchFullRealWeather(10.7769, 106.7009, "Hồ Chí Minh")
-      if (active) {
-        setData(res)
-        onThemeChange?.(res.theme)
-        setLoading(false)
+      try {
+        const { latitude, longitude } = await getUserLocation()
+        const geo = await reverseGeocodeApi(latitude, longitude)
+        const locationLabel = geo.district ? `${geo.district}, TP.HCM` : (geo.location || "Hồ Chí Minh")
+        const res = await fetchFullRealWeather(latitude, longitude, locationLabel)
+        if (active) {
+          setData(res)
+          onThemeChange?.(res.theme)
+          setLoading(false)
+        }
+      } catch {
+        const res = await fetchFullRealWeather(10.7769, 106.7009, "Hồ Chí Minh")
+        if (active) {
+          setData(res)
+          onThemeChange?.(res.theme)
+          setLoading(false)
+        }
       }
     }
     loadInitial()
@@ -453,7 +465,7 @@ function WeatherPage({
               <strong>{data.locationName}</strong>
               <span className="dot-divider">|</span>
               <span className="live-status">
-                {loading ? "Đang cập nhật…" : "Đang cập nhật"}
+                {loading ? "Đang đồng bộ…" : (data.updatedAt || "Vừa xong")}
               </span>
             </div>
 

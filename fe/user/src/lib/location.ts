@@ -1,3 +1,6 @@
+import { Capacitor } from "@capacitor/core"
+import { Geolocation } from "@capacitor/geolocation"
+
 export type UserGeoLocation = {
   latitude: number
   longitude: number
@@ -5,6 +8,28 @@ export type UserGeoLocation = {
 }
 
 export async function getUserLocation(): Promise<UserGeoLocation> {
+  // 0. Nếu chạy trên App Native Android / iOS, ưu tiên gọi thẳng cảm biến GPS phần cứng qua Capacitor
+  if (typeof window !== "undefined" && Capacitor.isNativePlatform()) {
+    try {
+      let perm = await Geolocation.checkPermissions()
+      if (perm.location !== "granted") {
+        perm = await Geolocation.requestPermissions()
+      }
+      if (perm.location === "granted") {
+        const pos = await Geolocation.getCurrentPosition({
+          enableHighAccuracy: true,
+          timeout: 10000,
+        })
+        return {
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+          isIpFallback: false,
+        }
+      }
+    } catch (err) {
+      console.warn("Capacitor native GPS lookup error, falling back:", err)
+    }
+  }
   const fallbackIp = async (): Promise<UserGeoLocation> => {
     try {
       const res = await fetch("https://ipwho.is/")

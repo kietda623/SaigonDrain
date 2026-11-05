@@ -333,7 +333,7 @@ export async function fetchFullRealWeather(
     return {
       locationName,
       coords: [lng, lat],
-      updatedAt: "Đang cập nhật",
+      updatedAt: new Intl.DateTimeFormat("vi-VN", { timeZone: "Asia/Ho_Chi_Minh", hour: "2-digit", minute: "2-digit" }).format(new Date()),
       tempC,
       apparentTempC,
       tempMax,

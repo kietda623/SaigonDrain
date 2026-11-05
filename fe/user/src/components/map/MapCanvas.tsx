@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react"
 import * as maplibregl from "maplibre-gl"
+import { Capacitor } from "@capacitor/core"
+import { Geolocation } from "@capacitor/geolocation"
 import type { GeoJSONSource, Map as LibreMap } from "maplibre-gl"
 import "maplibre-gl/dist/maplibre-gl.css"
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url"
-import { GOOGLE_MAP_TILE_URLS, type GoogleMapLayerType } from "@/lib/googleMaps"
+import { computeRouteWithGoogle, GOOGLE_MAP_TILE_URLS, type GoogleMapLayerType } from "@/lib/googleMaps"
 import type {
   MapFloodPoint,
   RouteEndpoint,
@@ -57,6 +59,7 @@ function MapCanvas({
   const progressDistanceRef = useRef<number>(0)
   const trackingTickerRef = useRef<any>(null)
   const watchIdRef = useRef<number | null>(null)
+  const capWatchIdRef = useRef<string | null>(null)
   const userRealGpsRef = useRef<[number, number] | null>(null)
   const navStepIndexRef = useRef<number>(navStepIndex)
   navStepIndexRef.current = navStepIndex
@@ -314,7 +317,24 @@ function MapCanvas({
         destCoords,
       ]
 
+      let hasGoogleRoute = false
       try {
+        const googleRes = await computeRouteWithGoogle(origCoords, destCoords)
+        if (googleRes && Array.isArray(googleRes.safeRoute?.coordinates) && googleRes.safeRoute.coordinates.length > 1) {
+          safeCoords = googleRes.safeRoute.coordinates
+          altCoords = safeCoords.map(([lng, lat], idx) => {
+            if (idx === 0 || idx === safeCoords.length - 1) return [lng, lat]
+            return [lng + 0.0015, lat - 0.001]
+          })
+          if (active) setRouteStatus("live")
+          hasGoogleRoute = true
+        }
+      } catch (err) {
+        console.warn("Google Maps geometry fallback:", err)
+      }
+
+      if (!hasGoogleRoute) {
+        try {
         const backendRes = await fetch(
           `/api/journey/compute-route?fromLat=${origCoords[1]}&fromLng=${origCoords[0]}&toLat=${destCoords[1]}&toLng=${destCoords[0]}`,
         )
@@ -371,6 +391,7 @@ function MapCanvas({
           if (active) setRouteStatus("fallback")
         }
       }
+    }
 
       // Tự động kết nối nét vẽ đường từ vị trí xuất phát trong hẻm ra đường chính
       if (origCoords && safeCoords.length > 0) {
@@ -716,8 +737,28 @@ function MapCanvas({
       updatePositionOnRoute(finalPoint, bestDistAlongRoute, heading, speed)
     }
 
-    // KHỞI ĐỘNG LIVE GPS TRACKING THẬT (watchPosition)
-    if (watchIdRef.current === null && typeof navigator !== "undefined" && navigator.geolocation) {
+    // KHỞI ĐỘNG LIVE GPS TRACKING THẬT (Capacitor Native hoặc Trình duyệt)
+    if (typeof window !== "undefined" && Capacitor.isNativePlatform()) {
+      if (capWatchIdRef.current === null) {
+        Geolocation.watchPosition(
+          { enableHighAccuracy: true },
+          (pos) => {
+            if (pos && pos.coords) {
+              handleRawGpsUpdate(
+                pos.coords.longitude,
+                pos.coords.latitude,
+                pos.coords.heading,
+                pos.coords.speed,
+              )
+            }
+          }
+        ).then((id) => {
+          capWatchIdRef.current = id
+        }).catch((err) => {
+          console.warn("Capacitor watchPosition error:", err)
+        })
+      }
+    } else if (watchIdRef.current === null && typeof navigator !== "undefined" && navigator.geolocation) {
       try {
         watchIdRef.current = navigator.geolocation.watchPosition(
           (pos) => {
@@ -750,6 +791,10 @@ function MapCanvas({
     }
 
     return () => {
+      if (capWatchIdRef.current !== null) {
+        Geolocation.clearWatch({ id: capWatchIdRef.current })
+        capWatchIdRef.current = null
+      }
       if (watchIdRef.current !== null && typeof navigator !== "undefined" && navigator.geolocation) {
         navigator.geolocation.clearWatch(watchIdRef.current)
         watchIdRef.current = null

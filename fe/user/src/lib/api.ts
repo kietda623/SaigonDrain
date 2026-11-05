@@ -13,6 +13,7 @@ import type {
   WeatherSnapshot,
 } from "@/types"
 import {
+  computeRouteWithGoogle,
   reverseGeocodeWithGoogle,
   searchPlacesWithGoogle,
 } from "./googleMaps"
@@ -662,6 +663,28 @@ export async function fetchJourneyRoutes(
   navigationSteps: NavigationStep[]
   live: boolean
 }> {
+  // 1. Ưu tiên cao nhất: Dùng Google Maps Directions Service (hỗ trợ xe máy qua từng ngõ hẻm)
+  try {
+    const googleRes = await computeRouteWithGoogle(originCoords, destCoords)
+    if (googleRes && Array.isArray(googleRes.safeRoute?.coordinates) && googleRes.safeRoute.coordinates.length > 1) {
+      return {
+        routes: {
+          safe: googleRes.safeRoute,
+          balanced: {
+            ...googleRes.safeRoute,
+            id: "balanced",
+            name: "Tuyến dự phòng",
+            badge: "Dự phòng",
+          },
+        },
+        navigationSteps: googleRes.navigationSteps,
+        live: true,
+      }
+    }
+  } catch (err) {
+    console.warn("Google Maps directions error, falling back:", err)
+  }
+
   try {
     const query = `fromLat=${originCoords[1]}&fromLng=${originCoords[0]}&toLat=${destCoords[1]}&toLng=${destCoords[0]}`
     const computeRes = await fetch(`${API_BASE}/journey/compute-route?${query}`)

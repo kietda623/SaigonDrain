@@ -3235,9 +3235,19 @@ h3 {
 }
 
 .top-bar.in-weather-mode {
-  background: transparent !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.14) !important;
+  background: rgba(15, 23, 42, 0.88) !important;
+  backdrop-filter: blur(18px) !important;
+  -webkit-backdrop-filter: blur(18px) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12) !important;
   color: #ffffff !important;
+}
+
+.top-bar.in-weather-mode .brand-word {
+  color: #ffffff !important;
+}
+
+.top-bar.in-weather-mode .brand-word span {
+  color: #2dd4bf !important;
 }
 
 .top-bar.in-weather-mode .header-action {
@@ -3321,7 +3331,7 @@ h3 {
 .weather-container {
   max-width: 1240px;
   margin: 0 auto;
-  padding: 36px 24px 68px 24px;
+  padding: calc(var(--header-height) + 24px) 24px 68px 24px;
   display: flex;
   flex-direction: column;
   gap: 26px;
