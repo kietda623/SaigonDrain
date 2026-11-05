@@ -18,6 +18,7 @@ import {
   searchPlacesWithGoogle,
 } from "./googleMaps"
 import { fetchFullRealWeather } from "./weatherApi"
+import defaultHotspots from "@/data/hcmc_flood_hotspots.json"
 
 const API_BASE =
   (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "/api"
@@ -566,22 +567,48 @@ export async function searchPlacesApi(
 export async function fetchMapPointsApi(): Promise<MapFloodPoint[]> {
   try {
     const res = await fetch(`${API_BASE}/map/points`)
-    if (!res.ok) return []
-    const data = await res.json()
-    const points = Array.isArray(data) ? (data as MapFloodPoint[]) : []
-    // Đồng bộ động các tuyến đường từ PostgreSQL vào bộ nhớ tìm kiếm
-    registerDynamicPlaces(
-      points.map((pt) => ({
-        label: pt.district ? `${pt.label} · ${pt.district}` : pt.label,
-        address: `${pt.label}, ${pt.district || "TP. Hồ Chí Minh"}`,
-        district: pt.district || "TP. Hồ Chí Minh",
-        coords: [pt.lng, pt.lat],
-      })),
-    )
-    return points
+    if (res.ok) {
+      const data = await res.json()
+      const points = Array.isArray(data) && data.length > 0 ? (data as MapFloodPoint[]) : []
+      if (points.length > 0) {
+        registerDynamicPlaces(
+          points.map((pt) => ({
+            label: pt.district ? `${pt.label} · ${pt.district}` : pt.label,
+            address: `${pt.label}, ${pt.district || "TP. Hồ Chí Minh"}`,
+            district: pt.district || "TP. Hồ Chí Minh",
+            coords: [pt.lng, pt.lat],
+          })),
+        )
+        return points
+      }
+    }
   } catch {
-    return []
+    // Offline / Backend disconnected fallback
   }
+
+  // Nạp 250 điểm ngập lịch sử khoa học IRD (2002-2026) khi backend chưa bật
+  const fallbackPoints: MapFloodPoint[] = (defaultHotspots as any[]).map((h) => ({
+    id: h.id,
+    lat: h.lat,
+    lng: h.lng,
+    label: h.label,
+    district: h.district,
+    type: "flood",
+    severity: h.severity,
+    depth: h.depth,
+    rainfall: h.rainfallThresholdMm || 50,
+  }))
+
+  registerDynamicPlaces(
+    fallbackPoints.map((pt) => ({
+      label: pt.district ? `${pt.label} · ${pt.district}` : pt.label,
+      address: `${pt.label}, ${pt.district || "TP. Hồ Chí Minh"}`,
+      district: pt.district || "TP. Hồ Chí Minh",
+      coords: [pt.lng, pt.lat],
+    })),
+  )
+
+  return fallbackPoints
 }
 
 export async function fetchCurrentWeather(): Promise<WeatherSnapshot | null> {
