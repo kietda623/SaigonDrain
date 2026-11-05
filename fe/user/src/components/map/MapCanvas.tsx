@@ -20,7 +20,7 @@ function MapCanvas({
   navStepIndex = 0,
   navigationSteps = [],
   recenterTrigger = 0,
-  isTrackingPaused = false,
+  stepForwardTrigger = 0,
   onStepChange,
   onProgressUpdate,
 }: {
@@ -33,7 +33,7 @@ function MapCanvas({
   navStepIndex?: number
   navigationSteps?: any[]
   recenterTrigger?: number
-  isTrackingPaused?: boolean
+  stepForwardTrigger?: number
   onStepChange?: (stepIndex: number) => void
   onProgressUpdate?: (info: {
     distanceToTurnM: number
@@ -63,8 +63,6 @@ function MapCanvas({
   onStepChangeRef.current = onStepChange
   const onProgressUpdateRef = useRef(onProgressUpdate)
   onProgressUpdateRef.current = onProgressUpdate
-  const isTrackingPausedRef = useRef(isTrackingPaused)
-  isTrackingPausedRef.current = isTrackingPaused
   const [routeStatus, setRouteStatus] = useState<
     "idle" | "loading" | "live" | "fallback"
   >("idle")
@@ -411,7 +409,8 @@ function MapCanvas({
   }, [ready, origin, destination])
 
   // =========================================================================
-  // CONTINUOUS TRACKING ENGINE (Theo dõi thời gian thực liên tục chuẩn Google Maps)
+  // PURE LIVE GPS TRACKING ENGINE (Theo dõi GPS người dùng thật theo thời gian thực)
+  // Không tự động di chuyển - Người dùng đi tới đâu sẽ tracking tới đó chuẩn Google Maps
   // =========================================================================
   useEffect(() => {
     const map = mapRef.current
@@ -430,7 +429,6 @@ function MapCanvas({
     }
     if (!coords || coords.length === 0) return
 
-    // Khoảng cách Haversine (mét)
     function getDistanceMeters(p1: [number, number], p2: [number, number]): number {
       const R = 6371000
       const dLat = ((p2[1] - p1[1]) * Math.PI) / 180
@@ -443,7 +441,6 @@ function MapCanvas({
       return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
     }
 
-    // Góc phương vị bearing (độ)
     function getBearing(start: [number, number], end: [number, number]): number {
       const y = Math.sin(((end[0] - start[0]) * Math.PI) / 180) * Math.cos((end[1] * Math.PI) / 180)
       const x =
@@ -454,12 +451,21 @@ function MapCanvas({
       return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360
     }
 
-    if (!isNavigating) {
-      // Khi dừng dẫn đường -> Dọn dẹp tracking ticker & watchPosition
-      if (trackingTickerRef.current) {
-        clearInterval(trackingTickerRef.current)
-        trackingTickerRef.current = null
+    // Chiếu tọa độ người dùng P lên đoạn thẳng AB trên tuyến đường (Map Matching)
+    function projectPointToSegment(p: [number, number], a: [number, number], b: [number, number]) {
+      const dx = b[0] - a[0]
+      const dy = b[1] - a[1]
+      const lenSq = dx * dx + dy * dy
+      if (lenSq === 0) return { point: a, t: 0 }
+      let t = ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / lenSq
+      t = Math.max(0, Math.min(1, t))
+      return {
+        point: [a[0] + t * dx, a[1] + t * dy] as [number, number],
+        t,
       }
+    }
+
+    if (!isNavigating) {
       if (watchIdRef.current !== null && typeof navigator !== "undefined" && navigator.geolocation) {
         navigator.geolocation.clearWatch(watchIdRef.current)
         watchIdRef.current = null
@@ -495,7 +501,7 @@ function MapCanvas({
       return
     }
 
-    // ĐOẠN ĐƯỜNG & MỐC RẼ
+    // TÍNH TOÁN ĐỘ DÀI VÀ MỐC RẼ TUYẾN ĐƯỜNG
     const segmentDistances: number[] = []
     let totalRouteMeters = 0
     for (let i = 0; i < coords.length - 1; i++) {
@@ -524,7 +530,6 @@ function MapCanvas({
       return coords[coords.length - 1] as [number, number]
     }
 
-    // Phân bổ mốc rẽ theo navigationSteps
     const stepCount = Math.max(1, navigationSteps.length)
     const stepMilestones: number[] = []
     let stepDistAccum = 0
@@ -548,7 +553,7 @@ function MapCanvas({
       stepMilestones.push(Math.min(totalRouteMeters, stepDistAccum))
     }
 
-    // Khởi tạo hoặc cập nhật 3D Puck
+    // Khởi tạo Navigation Puck nếu chưa có
     if (!puckMarkerRef.current) {
       const puckEl = document.createElement("div")
       puckEl.className = "google-nav-puck"
@@ -568,85 +573,52 @@ function MapCanvas({
         .addTo(map)
     }
 
-    // KHỞI ĐỘNG LIVE GPS TRACKING THẬT (watchPosition)
-    if (watchIdRef.current === null && typeof navigator !== "undefined" && navigator.geolocation) {
-      try {
-        watchIdRef.current = navigator.geolocation.watchPosition(
-          (pos) => {
-            const realLat = pos.coords.latitude
-            const realLng = pos.coords.longitude
-            userRealGpsRef.current = [realLng, realLat]
-
-            let closestSegIdx = 0
-            let minDistanceToRoute = Infinity
-            let distAlongRouteToClosest = 0
-            let runningSum = 0
-
-            for (let i = 0; i < coords.length - 1; i++) {
-              const p = coords[i] as [number, number]
-              const d = getDistanceMeters(p, [realLng, realLat])
-              if (d < minDistanceToRoute) {
-                minDistanceToRoute = d
-                closestSegIdx = i
-                distAlongRouteToClosest = runningSum
-              }
-              runningSum += segmentDistances[i]
-            }
-
-            if (minDistanceToRoute < 80) {
-              progressDistanceRef.current = Math.max(progressDistanceRef.current, distAlongRouteToClosest)
-            }
-          },
-          (err) => {
-            console.warn("Live GPS watchPosition warning:", err)
-          },
-          { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 }
-        )
-      } catch (err) {
-        console.warn("Could not start watchPosition:", err)
-      }
-    }
-
-    // Cập nhật vị trí hiển thị, camera 3D và bước rẽ
-    const updateTrackingFrame = () => {
-      const curDist = progressDistanceRef.current
-      const currentPoint = getPointAtDistance(curDist)
-      const lookPoint = getPointAtDistance(curDist + 16)
-      const roadBearing = getBearing(currentPoint, lookPoint)
+    // Hàm cập nhật camera, mũi tên và khoảng cách khi vị trí người dùng thay đổi
+    const updatePositionOnRoute = (
+      userPoint: [number, number],
+      distAlongRoute: number,
+      deviceHeading?: number | null,
+      deviceSpeed?: number | null,
+    ) => {
+      progressDistanceRef.current = distAlongRoute
+      const lookPoint = getPointAtDistance(distAlongRoute + 16)
+      const roadBearing = typeof deviceHeading === "number" && !isNaN(deviceHeading) && deviceHeading > 0
+        ? deviceHeading
+        : getBearing(userPoint, lookPoint)
 
       if (puckMarkerRef.current) {
-        puckMarkerRef.current.setLngLat(currentPoint)
+        puckMarkerRef.current.setLngLat(userPoint)
         const arrowBody = puckMarkerRef.current.getElement().querySelector(".puck-arrow-body") as HTMLElement | null
         if (arrowBody) {
           arrowBody.style.transform = `rotate(${roadBearing}deg)`
         }
       }
 
-      // Camera 3D bám sát theo xe mượt mà
+      // Camera 3D bám sát theo vị trí người dùng
       map.easeTo({
-        center: currentPoint,
+        center: userPoint,
         zoom: 17.8,
         pitch: 62,
         bearing: roadBearing,
-        duration: 550,
+        duration: 650,
         essential: true,
       })
 
       // Khoảng cách tới ngã rẽ tiếp theo
       const curStepIdx = navStepIndexRef.current
       const targetTurnDist = stepMilestones[curStepIdx] ?? totalRouteMeters
-      const distToTurnM = Math.max(0, Math.round(targetTurnDist - curDist))
+      const distToTurnM = Math.max(0, Math.round(targetTurnDist - distAlongRoute))
 
-      // Tự động chuyển bước rẽ khi đến gần ngã rẽ (<= 25m)
+      // Nếu người dùng đã đi tới ngã rẽ (<= 25m): tự động chuyển sang bước rẽ kế tiếp!
       if (distToTurnM <= 25 && curStepIdx < navigationSteps.length - 1) {
         const nextStepIdx = curStepIdx + 1
         navStepIndexRef.current = nextStepIdx
         onStepChangeRef.current?.(nextStepIdx)
       }
 
-      const remainingKmM = Math.max(0, Math.round(totalRouteMeters - curDist))
-      const remainingMin = Math.max(1, Math.round(remainingKmM / ((32 * 1000) / 60)))
-      const speedKmh = isTrackingPausedRef.current ? 0 : 32
+      const remainingKmM = Math.max(0, Math.round(totalRouteMeters - distAlongRoute))
+      const remainingMin = Math.max(1, Math.round(remainingKmM / ((25 * 1000) / 60)))
+      const speedKmh = deviceSpeed ? Math.round(deviceSpeed * 3.6) : 0
 
       onProgressUpdateRef.current?.({
         distanceToTurnM: distToTurnM,
@@ -656,43 +628,76 @@ function MapCanvas({
       })
     }
 
-    updateTrackingFrame()
+    // Xử lý khi có tọa độ GPS thật gửi về từ cảm biến thiết bị của người dùng
+    const handleRawGpsUpdate = (rawLng: number, rawLat: number, heading?: number | null, speed?: number | null) => {
+      userRealGpsRef.current = [rawLng, rawLat]
 
-    // Khởi động vòng lặp Tracking liên tục (mỗi 500ms)
-    if (trackingTickerRef.current) {
-      clearInterval(trackingTickerRef.current)
+      // Tìm điểm chiếu gần nhất trên tuyến đường (Map Matching)
+      let minDistanceToRoad = Infinity
+      let bestSnappedPoint = coords[0] as [number, number]
+      let bestDistAlongRoute = 0
+      let runningSum = 0
+
+      for (let i = 0; i < coords.length - 1; i++) {
+        const a = coords[i] as [number, number]
+        const b = coords[i + 1] as [number, number]
+        const segDist = segmentDistances[i]
+        const proj = projectPointToSegment([rawLng, rawLat], a, b)
+        const d = getDistanceMeters([rawLng, rawLat], proj.point)
+        if (d < minDistanceToRoad) {
+          minDistanceToRoad = d
+          bestSnappedPoint = proj.point
+          bestDistAlongRoute = runningSum + segDist * proj.t
+        }
+        runningSum += segDist
+      }
+
+      // Nếu người dùng đang đi trên đường (< 65m): snap xe vào trục đường
+      // Nếu người dùng đi lệch xa khỏi đường: dùng vị trí GPS thật
+      const finalPoint: [number, number] = minDistanceToRoad < 65 ? bestSnappedPoint : [rawLng, rawLat]
+      updatePositionOnRoute(finalPoint, bestDistAlongRoute, heading, speed)
     }
 
-    trackingTickerRef.current = setInterval(() => {
-      if (!isNavigatingRef.current) return
-
-      if (isTrackingPausedRef.current) {
-        updateTrackingFrame()
-        return
+    // KHỞI ĐỘNG LIVE GPS TRACKING THẬT (watchPosition)
+    if (watchIdRef.current === null && typeof navigator !== "undefined" && navigator.geolocation) {
+      try {
+        watchIdRef.current = navigator.geolocation.watchPosition(
+          (pos) => {
+            handleRawGpsUpdate(
+              pos.coords.longitude,
+              pos.coords.latitude,
+              pos.coords.heading,
+              pos.coords.speed,
+            )
+          },
+          (err) => {
+            console.warn("Live GPS watchPosition warning:", err)
+          },
+          { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
+        )
+      } catch (err) {
+        console.warn("Could not start watchPosition:", err)
       }
+    }
 
-      // Mỗi 500ms tiến tới ~4.5 mét (tương đương 32 km/h)
-      const stepMeters = (32 * 1000 / 3600) * 0.5
-      progressDistanceRef.current = Math.min(
-        totalRouteMeters,
-        progressDistanceRef.current + stepMeters,
-      )
-
-      updateTrackingFrame()
-
-      if (progressDistanceRef.current >= totalRouteMeters) {
-        clearInterval(trackingTickerRef.current)
-        trackingTickerRef.current = null
-      }
-    }, 500)
+    // Hiển thị vị trí ban đầu hoặc bước đi thử nghiệm
+    if (stepForwardTrigger > 0) {
+      const nextDist = Math.min(totalRouteMeters, progressDistanceRef.current + 50)
+      const nextPoint = getPointAtDistance(nextDist)
+      updatePositionOnRoute(nextPoint, nextDist, null, 25)
+    } else {
+      const initialDist = progressDistanceRef.current
+      const initialPoint = getPointAtDistance(initialDist)
+      updatePositionOnRoute(initialPoint, initialDist, null, 0)
+    }
 
     return () => {
-      if (trackingTickerRef.current) {
-        clearInterval(trackingTickerRef.current)
-        trackingTickerRef.current = null
+      if (watchIdRef.current !== null && typeof navigator !== "undefined" && navigator.geolocation) {
+        navigator.geolocation.clearWatch(watchIdRef.current)
+        watchIdRef.current = null
       }
     }
-  }, [isNavigating, ready, routeVersion, recenterTrigger, isTrackingPaused, navigationSteps.length])
+  }, [isNavigating, ready, routeVersion, recenterTrigger, stepForwardTrigger, navigationSteps.length])
 
   // Hiển thị các điểm ngập thực tế từ PostgreSQL lên bản đồ
   useEffect(() => {

@@ -80,7 +80,7 @@ function App() {
   const [liveSpeed, setLiveSpeed] = useState<number>(32)
   const [liveRemainingKm, setLiveRemainingKm] = useState<string | null>(null)
   const [liveRemainingMin, setLiveRemainingMin] = useState<number | null>(null)
-  const [isTrackingPaused, setIsTrackingPaused] = useState<boolean>(false)
+  const [stepForwardTrigger, setStepForwardTrigger] = useState(0)
   const [mainView, setMainView] = useState<"map" | "weather">("map")
   const [weatherTheme, setWeatherTheme] = useState<"sunny" | "rainy" | "cloudy" | "night">("rainy")
   const [activeTab, setActiveTab] = useState<AppTab>("map")
@@ -215,7 +215,6 @@ function App() {
       const next = !current
       if (next) {
         setNavStepIndex(0)
-        setIsTrackingPaused(false)
         setLiveDistanceToTurn(null)
         setLiveRemainingKm(null)
         setLiveRemainingMin(null)
@@ -230,7 +229,6 @@ function App() {
   function handleStopNavigation() {
     setIsNavigating(false)
     setNavStepIndex(0)
-    setIsTrackingPaused(false)
   }
 
   function selectTab(tab: AppTab) {
@@ -307,7 +305,6 @@ function App() {
           destination={destination}
           floodPoints={floodPoints}
           isNavigating={isNavigating}
-          isTrackingPaused={isTrackingPaused}
           navStepIndex={navStepIndex}
           navigationSteps={navigationSteps}
           onProgressUpdate={(info) => {
@@ -323,6 +320,7 @@ function App() {
           recenterTrigger={recenterTrigger}
           route={selectedRoute}
           routesData={routesData}
+          stepForwardTrigger={stepForwardTrigger}
         />
 
         <div className="map-top-stack">
@@ -377,9 +375,9 @@ function App() {
                   <span className="nav-hud-distance">
                     {liveDistanceToTurn !== null ? `Trong ${liveDistanceToTurn} m` : `Trong ${currentStep?.distance || "150 m"}`}
                   </span>
-                  <span className={`live-tracking-badge ${isTrackingPaused ? "is-paused" : "is-active"}`}>
+                  <span className="live-tracking-badge is-active">
                     <span className="live-tracking-dot" />
-                    {isTrackingPaused ? "Tạm dừng tracking" : "Đang tracking liên tục"}
+                    GPS Trực tiếp (Theo dõi người dùng)
                   </span>
                 </div>
                 <h2 className="nav-hud-action">
@@ -428,24 +426,24 @@ function App() {
           <div className="google-nav-float-actions">
             <button
               type="button"
-              className={`nav-float-btn ${isTrackingPaused ? "is-paused" : "is-tracking"}`}
-              onClick={() => setIsTrackingPaused((prev) => !prev)}
-              title={isTrackingPaused ? "Tiếp tục tracking" : "Tạm dừng tracking"}
-            >
-              <Icon name={isTrackingPaused ? "arrow" : "check"} size={18} />
-              <span>{isTrackingPaused ? "Tiếp tục" : "Tạm dừng"}</span>
-            </button>
-            <button
-              type="button"
               className="nav-float-btn"
               onClick={() => setRecenterTrigger(Date.now())}
               title="Căn giữa xe"
             >
               <Icon name="location" size={20} />
-              <span>Căn giữa</span>
+              <span>Căn giữa xe</span>
+            </button>
+            <button
+              type="button"
+              className="nav-float-btn nav-test-walk-btn"
+              onClick={() => setStepForwardTrigger(Date.now())}
+              title="Mô phỏng bước đi 50m khi đang ở trong nhà để thử nghiệm"
+            >
+              <Icon name="arrow" size={18} />
+              <span>Đi tới 50m</span>
             </button>
             <div className="nav-speed-badge">
-              <strong>{isTrackingPaused ? 0 : liveSpeed}</strong>
+              <strong>{liveSpeed}</strong>
               <small>km/h</small>
             </div>
           </div>
