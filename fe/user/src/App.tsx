@@ -76,6 +76,11 @@ function App() {
   const [isNavigating, setIsNavigating] = useState(false)
   const [navStepIndex, setNavStepIndex] = useState(0)
   const [recenterTrigger, setRecenterTrigger] = useState(0)
+  const [liveDistanceToTurn, setLiveDistanceToTurn] = useState<number | null>(null)
+  const [liveSpeed, setLiveSpeed] = useState<number>(32)
+  const [liveRemainingKm, setLiveRemainingKm] = useState<string | null>(null)
+  const [liveRemainingMin, setLiveRemainingMin] = useState<number | null>(null)
+  const [stepForwardTrigger, setStepForwardTrigger] = useState(0)
   const [mainView, setMainView] = useState<"map" | "weather">("map")
   const [weatherTheme, setWeatherTheme] = useState<"sunny" | "rainy" | "cloudy" | "night">("rainy")
   const [activeTab, setActiveTab] = useState<AppTab>("map")
@@ -210,6 +215,9 @@ function App() {
       const next = !current
       if (next) {
         setNavStepIndex(0)
+        setLiveDistanceToTurn(null)
+        setLiveRemainingKm(null)
+        setLiveRemainingMin(null)
         setRecenterTrigger(Date.now())
       }
       return next
@@ -299,10 +307,20 @@ function App() {
           isNavigating={isNavigating}
           navStepIndex={navStepIndex}
           navigationSteps={navigationSteps}
+          onProgressUpdate={(info) => {
+            setLiveDistanceToTurn(info.distanceToTurnM)
+            setLiveSpeed(info.speedKmh)
+            setLiveRemainingKm((info.remainingKmM / 1000).toFixed(1).replace(".", ","))
+            setLiveRemainingMin(info.remainingMinutes)
+          }}
+          onStepChange={(newStep) => {
+            setNavStepIndex(newStep)
+          }}
           origin={origin}
           recenterTrigger={recenterTrigger}
           route={selectedRoute}
           routesData={routesData}
+          stepForwardTrigger={stepForwardTrigger}
         />
 
         <div className="map-top-stack">
@@ -353,7 +371,15 @@ function App() {
                 <Icon name={currentStep?.icon || "straight"} size={32} />
               </div>
               <div className="nav-hud-instruction">
-                <span className="nav-hud-distance">Trong {currentStep?.distance || "150 m"}</span>
+                <div className="nav-hud-top-meta">
+                  <span className="nav-hud-distance">
+                    {liveDistanceToTurn !== null ? `Trong ${liveDistanceToTurn} m` : `Trong ${currentStep?.distance || "150 m"}`}
+                  </span>
+                  <span className="live-tracking-badge is-active">
+                    <span className="live-tracking-dot" />
+                    GPS Trực tiếp (Theo dõi người dùng)
+                  </span>
+                </div>
                 <h2 className="nav-hud-action">
                   {currentStep ? `${currentStep.instruction} ${currentStep.street}` : "Tiếp tục di chuyển theo tuyến an toàn"}
                 </h2>
@@ -405,7 +431,52 @@ function App() {
               title="Căn giữa xe"
             >
               <Icon name="location" size={20} />
-              <span>Căn giữa</span>
+              <span>Căn giữa xe</span>
+            </button>
+            <button
+              type="button"
+              className="nav-float-btn nav-test-walk-btn"
+              onClick={() => setStepForwardTrigger(Date.now())}
+              title="Mô phỏng bước đi 50m khi đang ở trong nhà để thử nghiệm"
+            >
+              <Icon name="arrow" size={18} />
+              <span>Đi tới 50m</span>
+            </button>
+            <div className="nav-speed-badge">
+              <strong>{liveSpeed}</strong>
+              <small>km/h</small>
+            </div>
+          </div>
+        )}
+
+        {isNavigating && (
+          <div className="google-nav-hud-bottom">
+            <div className="nav-bottom-trip">
+              <div className="nav-trip-time">
+                <span className="nav-time-val">
+                  {liveRemainingMin !== null ? `${liveRemainingMin} phút` : (activeRouteData.time || "12 phút")}
+                </span>
+                <span className="nav-dot">·</span>
+                <span className="nav-dist-val">
+                  {liveRemainingKm !== null ? `${liveRemainingKm} km` : (activeRouteData.distance || "3,4 km")}
+                </span>
+              </div>
+              <div className="nav-trip-eta">
+                <span>Dự kiến đến: <strong>{calculateEta(liveRemainingMin ? `${liveRemainingMin} phút` : activeRouteData.time)}</strong></span>
+                <span className="nav-safety-badge">
+                  <Icon name="shield" size={14} />
+                  Tuyến an toàn · Đã tránh ngập
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              className="nav-bottom-exit-btn"
+              onClick={handleStopNavigation}
+              title="Kết thúc hành trình dẫn đường"
+            >
+              <Icon name="close" size={18} />
+              <span>Kết thúc</span>
             </button>
           </div>
         )}
