@@ -1,18 +1,22 @@
 import { useState } from "react"
-import { BellRing, CheckCircle2, Megaphone, Radio } from "lucide-react"
+import { BellRing, CheckCircle2, Megaphone, Radio, Sparkles, Send } from "lucide-react"
 import AlertTable from "@/components/alerts/AlertTable"
 import EmptyState from "@/components/ui/EmptyState"
 import SectionHeader from "@/components/ui/SectionHeader"
 import SegmentedControl from "@/components/ui/SegmentedControl"
 import { alertLevelCounts, channelCoverage } from "@/lib/analytics"
-import type { AreaAlert } from "@/types"
+import type { AreaAlert, WeatherSnapshot, MapPoint } from "@/types"
 
 function AlertsPage({
   alerts,
+  weather,
+  points = [],
   onEdit,
   onEnd,
 }: {
   alerts: AreaAlert[]
+  weather?: WeatherSnapshot | null
+  points?: MapPoint[]
   onEdit: (alert: AreaAlert) => void
   onEnd: (alert: AreaAlert) => void
 }) {
@@ -27,6 +31,45 @@ function AlertsPage({
         description="Phát thông tin đến người dân qua web, push và trung tâm điều hành."
         title="Danh sách cảnh báo"
       />
+
+      {/* Thẻ gợi ý Cảnh báo Tự động theo Thời tiết thực & Mô hình IRD */}
+      <div className="panel ai-alert-recommendation">
+        <div className="ai-alert-header">
+          <div className="ai-alert-tag">
+            <Sparkles size={16} /> Gợi ý Cảnh báo AI (Mô hình IRD 2002–2026)
+          </div>
+          <span className="ai-alert-weather-info">
+            Thời tiết thực tế: <strong>{weather?.currentRainMm ?? 0} mm mưa</strong> · {weather?.weatherCondition || "Trời quang"}
+          </span>
+        </div>
+        <p className="ai-alert-desc">
+          Mô hình phát hiện <strong>3 trục đường đen nhạy cảm nhất</strong> khi có mưa dông hoặc đỉnh triều:
+          <strong> Đường Quốc Hương (Thảo Điền)</strong>, <strong>Đường Nguyễn Hữu Cảnh (Bình Thạnh)</strong> và <strong>Đường Huỳnh Tấn Phát (Quận 7)</strong>.
+        </p>
+        <div className="ai-alert-action-row">
+          <button
+            type="button"
+            className="ai-alert-draft-btn"
+            onClick={() =>
+              onEdit({
+                id: "DRAFT-AI",
+                area: "Thảo Điền & Bình Thạnh",
+                level: "Cảnh báo",
+                hazardType: "Mưa lớn kết hợp triều dâng",
+                title: "Cảnh báo ngập úng các trục đường trũng thấp (Quốc Hương, Nguyễn Hữu Cảnh)",
+                message: "Dự báo mưa lớn diện rộng và triều dâng. Người dân hạn chế di chuyển qua các tuyến đường Quốc Hương, Huỳnh Tấn Phát và Nguyễn Hữu Cảnh.",
+                startedAt: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
+                expiresAt: "22:00",
+                status: "active",
+                channels: ["Web", "Push", "Trung tâm điều hành"],
+                createdBy: "SaigonDrain AI",
+              })
+            }
+          >
+            <Send size={15} /> Soạn nhanh Cảnh báo khẩn từ gợi ý AI
+          </button>
+        </div>
+      </div>
 
       <div className="alert-stat-row">
         <div className="alert-stat">

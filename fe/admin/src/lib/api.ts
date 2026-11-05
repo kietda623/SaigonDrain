@@ -1,3 +1,4 @@
+import defaultHotspots from "@/data/hcmc_flood_hotspots.json"
 import type {
   AlertDraft,
   AreaAlert,
@@ -65,9 +66,12 @@ export async function fetchAdminInitialData(): Promise<{
     const alerts = alertsRes.ok
       ? ((await alertsRes.json()) as AreaAlert[])
       : undefined
-    const mapPoints = pointsRes.ok
+    let mapPoints = pointsRes.ok
       ? ((await pointsRes.json()) as MapPoint[])
       : undefined
+    if (!mapPoints || mapPoints.length === 0) {
+      mapPoints = defaultHotspots as any[]
+    }
     const users = usersRes.ok
       ? ((await usersRes.json()) as CommunityUser[])
       : undefined

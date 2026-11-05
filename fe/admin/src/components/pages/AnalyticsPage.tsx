@@ -7,6 +7,9 @@ import StatusPill from "@/components/ui/StatusPill"
 import {
   averageDepth,
   districtBreakdown,
+  irdCausesBreakdown,
+  irdDistrictBreakdown,
+  irdTopSevereStreets,
   mapPointBreakdown,
   reportStatusCounts,
   severityBreakdown,
@@ -125,11 +128,30 @@ function AnalyticsPage({
         />
       </div>
 
+      <SectionHeader
+        action={<StatusPill tone="info">Dataset 2002 – 2026 (24 năm)</StatusPill>}
+        description="Số liệu 425 quan trắc thực nghiệm và 250 tuyến đường ngập lụt được chuẩn hóa từ công trình nghiên cứu Viện IRD / LMI CARE."
+        title="Dữ liệu Lịch sử Ngập Đô thị TP.HCM (Viện Nghiên cứu IRD)"
+      />
+
       <div className="analytics-grid">
         <DistributionChart
-          description="Phân bố mức độ trên toàn bộ điểm bản đồ vận hành."
-          items={mapPointBreakdown(points)}
-          title="Điểm bản đồ theo mức độ"
+          description="Tỷ lệ 425 quan trắc thực nghiệm theo nguyên nhân gây ngập tại TP.HCM."
+          items={irdCausesBreakdown()}
+          title="Nguyên nhân ngập thực tế (2002–2026)"
+        />
+        <DistributionChart
+          description="Mực nước ngập sâu nhất từng ghi nhận qua các năm (cm)."
+          items={irdTopSevereStreets()}
+          title="Top Tuyến đường ngập sâu kỷ lục"
+        />
+      </div>
+
+      <div className="analytics-grid">
+        <DistributionChart
+          description="Phân bổ 250 điểm đen ngập lụt theo các đơn vị hành chính TP.HCM."
+          items={irdDistrictBreakdown()}
+          title="Điểm đen ngập lụt theo Quận/Huyện"
         />
         <DistributionChart
           description="Nhóm người dùng theo điểm tin cậy cộng đồng."
@@ -139,7 +161,7 @@ function AnalyticsPage({
             percent: band.percent,
             key: band.key,
           }))}
-          title="Phân bố điểm tin cậy"
+          title="Phân bố điểm tin cậy cộng đồng"
         />
       </div>
 
