@@ -1,3 +1,5 @@
+import { searchPlacesWithGoogle } from "./googleMaps"
+
 export interface HourlyForecastItem {
   time: string
   hourNum: number
@@ -374,6 +376,22 @@ export async function searchWeatherLocation(query: string): Promise<
 > {
   const clean = query.trim()
   if (!clean || clean.length < 2) return []
+
+  try {
+    const googleResults = await searchPlacesWithGoogle(clean)
+    if (googleResults && googleResults.length > 0) {
+      return googleResults.map((p) => ({
+        name: p.address || p.label.split("·")[0].trim(),
+        country: "Việt Nam",
+        admin1: p.district || "TP. Hồ Chí Minh",
+        lat: p.coords[1],
+        lng: p.coords[0],
+        displayLabel: p.label,
+      }))
+    }
+  } catch {
+    // fallback to open-meteo
+  }
 
   try {
     const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(clean)}&count=6&language=vi&format=json`

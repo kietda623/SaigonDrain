@@ -6,6 +6,7 @@ import type {
   RouteId,
   RouteItem,
   SavedRoutePair,
+  WeatherSnapshot,
 } from "@/types"
 import JourneyStatus from "@/components/journey/JourneyStatus"
 import ForecastTimeline from "@/components/journey/ForecastTimeline"
@@ -31,6 +32,7 @@ function JourneyPanel({
   savedRoutes,
   onSelectSavedRoute,
   onRemoveSavedRoute,
+  weather,
 }: {
   forecastIndex: number
   setForecastIndex: (index: number) => void
@@ -50,6 +52,7 @@ function JourneyPanel({
   savedRoutes?: readonly SavedRoutePair[]
   onSelectSavedRoute?: (pair: SavedRoutePair) => void
   onRemoveSavedRoute?: (id: string) => void
+  weather?: WeatherSnapshot | null
 }) {
   const forecastRef = useRef<HTMLDivElement>(null)
   const routesRef = useRef<HTMLDivElement>(null)
@@ -101,7 +104,11 @@ function JourneyPanel({
           </div>
         )}
 
-        <JourneyStatus forecastIndex={forecastIndex} slots={forecasts} />
+        <JourneyStatus
+          forecastIndex={forecastIndex}
+          slots={forecasts}
+          weather={weather}
+        />
 
         <div className="panel-scroll">
           <div ref={forecastRef}>

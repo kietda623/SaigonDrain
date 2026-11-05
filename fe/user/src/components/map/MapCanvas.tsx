@@ -3,6 +3,7 @@ import * as maplibregl from "maplibre-gl"
 import type { GeoJSONSource, Map as LibreMap } from "maplibre-gl"
 import "maplibre-gl/dist/maplibre-gl.css"
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url"
+import { GOOGLE_MAP_TILE_URLS, type GoogleMapLayerType } from "@/lib/googleMaps"
 import type {
   MapFloodPoint,
   RouteEndpoint,
@@ -68,6 +69,32 @@ function MapCanvas({
   >("idle")
   const [ready, setReady] = useState(false)
   const [routeVersion, setRouteVersion] = useState(0)
+  const [mapLayer, setMapLayer] = useState<GoogleMapLayerType>("google-streets")
+  const [showLayerMenu, setShowLayerMenu] = useState(false)
+  const layerMenuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleClickOutside = (ev: MouseEvent) => {
+      if (layerMenuRef.current && !layerMenuRef.current.contains(ev.target as Node)) {
+        setShowLayerMenu(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [])
+
+  // Khi bat dau / ket thuc dan duong, tu dong resize de MapLibre phu kin 100% man hinh
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    map.resize()
+    const t1 = setTimeout(() => map.resize(), 50)
+    const t2 = setTimeout(() => map.resize(), 200)
+    return () => {
+      clearTimeout(t1)
+      clearTimeout(t2)
+    }
+  }, [isNavigating])
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return
@@ -82,24 +109,55 @@ function MapCanvas({
       style: {
         version: 8,
         sources: {
-          osm: {
+          "google-streets": {
             type: "raster",
-            tiles: [
-              "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
-            ],
+            tiles: GOOGLE_MAP_TILE_URLS["google-streets"],
+            tileSize: 256,
+            attribution: "© Google Maps",
+          },
+          "google-satellite": {
+            type: "raster",
+            tiles: GOOGLE_MAP_TILE_URLS["google-satellite"],
+            tileSize: 256,
+            attribution: "© Google Maps Satellite",
+          },
+          "google-traffic": {
+            type: "raster",
+            tiles: GOOGLE_MAP_TILE_URLS["google-traffic"],
+            tileSize: 256,
+            attribution: "© Google Maps Live Traffic",
+          },
+          esri: {
+            type: "raster",
+            tiles: GOOGLE_MAP_TILE_URLS.esri,
             tileSize: 256,
             attribution: "© Esri · OpenStreetMap contributors",
           },
         },
         layers: [
           {
-            id: "osm",
+            id: "layer-google-streets",
             type: "raster",
-            source: "osm",
-            paint: {
-              "raster-saturation": -0.08,
-              "raster-contrast": 0.04,
-            },
+            source: "google-streets",
+            layout: { visibility: "visible" },
+          },
+          {
+            id: "layer-google-satellite",
+            type: "raster",
+            source: "google-satellite",
+            layout: { visibility: "none" },
+          },
+          {
+            id: "layer-google-traffic",
+            type: "raster",
+            source: "google-traffic",
+            layout: { visibility: "none" },
+          },
+          {
+            id: "layer-esri",
+            type: "raster",
+            source: "esri",
+            layout: { visibility: "none" },
           },
         ],
       },
@@ -758,6 +816,28 @@ function MapCanvas({
     }
   }, [route, ready, routesData])
 
+  // Chuyển đổi lớp nền bản đồ mượt mà (Google Maps / Vệ tinh / Giao thông / Esri)
+  useEffect(() => {
+    const map = mapRef.current
+    if (!ready || !map) return
+    const allLayers: GoogleMapLayerType[] = [
+      "google-streets",
+      "google-satellite",
+      "google-traffic",
+      "esri",
+    ]
+    for (const l of allLayers) {
+      const id = `layer-${l}`
+      if (map.getLayer(id)) {
+        map.setLayoutProperty(
+          id,
+          "visibility",
+          l === mapLayer ? "visible" : "none",
+        )
+      }
+    }
+  }, [mapLayer, ready])
+
   const statusText =
     routeStatus === "idle"
       ? "Nhập Điểm đi và Điểm đến để tìm lộ trình tránh ngập"
@@ -771,9 +851,116 @@ function MapCanvas({
     <div className="libre-map-shell">
       <div
         aria-label="Bản đồ giám sát ngập và dẫn đường TP.HCM"
-        className="libre-map"
+        className={`libre-map layer-${mapLayer}`}
         ref={containerRef}
       />
+
+      {/* Bộ chuyển đổi lớp Bản đồ Google Maps / Vệ tinh / Giao thông */}
+      <div className="map-layer-control-wrap" ref={layerMenuRef}>
+        <button
+          type="button"
+          className={`map-layer-btn ${showLayerMenu ? "active" : ""}`}
+          onClick={() => setShowLayerMenu((prev) => !prev)}
+          title="Chọn kiểu bản đồ Google Maps"
+          aria-label="Chọn kiểu bản đồ Google Maps"
+        >
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <polygon points="12 2 2 7 12 12 22 7 12 2" />
+            <polyline points="2 17 12 22 22 17" />
+            <polyline points="2 12 12 17 22 12" />
+          </svg>
+          <span className="map-layer-current-text">
+            {mapLayer === "google-streets"
+              ? "Google"
+              : mapLayer === "google-satellite"
+                ? "Vệ tinh"
+                : mapLayer === "google-traffic"
+                  ? "Giao thông"
+                  : "Esri"}
+          </span>
+        </button>
+
+        {showLayerMenu && (
+          <div className="map-layer-popup" role="menu">
+            <div className="map-layer-popup-title">Lớp nền bản đồ</div>
+            <div className="map-layer-options">
+              <button
+                type="button"
+                className={`map-layer-card ${mapLayer === "google-streets" ? "selected" : ""}`}
+                onClick={() => {
+                  setMapLayer("google-streets")
+                  setShowLayerMenu(false)
+                }}
+              >
+                <div className="map-layer-card-icon">🗺️</div>
+                <div className="map-layer-card-body">
+                  <strong>Google Đường phố</strong>
+                  <p>Hẻm nhỏ, số nhà, ngõ ngách chi tiết TP.HCM</p>
+                </div>
+                {mapLayer === "google-streets" && <span className="map-layer-check">✓</span>}
+              </button>
+
+              <button
+                type="button"
+                className={`map-layer-card ${mapLayer === "google-satellite" ? "selected" : ""}`}
+                onClick={() => {
+                  setMapLayer("google-satellite")
+                  setShowLayerMenu(false)
+                }}
+              >
+                <div className="map-layer-card-icon">🛰️</div>
+                <div className="map-layer-card-body">
+                  <strong>Google Vệ tinh</strong>
+                  <p>Ảnh chụp không gian thực tế + Tên đường</p>
+                </div>
+                {mapLayer === "google-satellite" && <span className="map-layer-check">✓</span>}
+              </button>
+
+              <button
+                type="button"
+                className={`map-layer-card ${mapLayer === "google-traffic" ? "selected" : ""}`}
+                onClick={() => {
+                  setMapLayer("google-traffic")
+                  setShowLayerMenu(false)
+                }}
+              >
+                <div className="map-layer-card-icon">🚦</div>
+                <div className="map-layer-card-body">
+                  <strong>Google Giao thông Live</strong>
+                  <p>Mật độ kẹt xe & tốc độ lưu thông trực tiếp</p>
+                </div>
+                {mapLayer === "google-traffic" && <span className="map-layer-check">✓</span>}
+              </button>
+
+              <button
+                type="button"
+                className={`map-layer-card ${mapLayer === "esri" ? "selected" : ""}`}
+                onClick={() => {
+                  setMapLayer("esri")
+                  setShowLayerMenu(false)
+                }}
+              >
+                <div className="map-layer-card-icon">🌐</div>
+                <div className="map-layer-card-body">
+                  <strong>Esri Thế giới</strong>
+                  <p>Bản đồ tiêu chuẩn quốc tế OSM</p>
+                </div>
+                {mapLayer === "esri" && <span className="map-layer-check">✓</span>}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
       <div className="libre-route-status">
         <span />
         {statusText}

@@ -12,6 +12,11 @@ import type {
   Severity,
   WeatherSnapshot,
 } from "@/types"
+import {
+  reverseGeocodeWithGoogle,
+  searchPlacesWithGoogle,
+} from "./googleMaps"
+import { fetchFullRealWeather } from "./weatherApi"
 
 const API_BASE =
   (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "/api"
@@ -465,6 +470,10 @@ export async function searchPlacesApi(
   }
 
   const results: RouteEndpoint[] = [...matchDynamicPlacePool(clean)]
+  const googlePromise = searchPlacesWithGoogle(clean).then((res) => {
+    if (res.length > 0) registerDynamicPlaces(res)
+    return res
+  })
 
   const arcgisDirectPromise = fetchArcgisCandidates(clean, 7, signal)
   const nominatimPromise = fetchNominatimCandidates(clean, 7, signal)
@@ -523,11 +532,12 @@ export async function searchPlacesApi(
       if (!resolved && collected.length >= 3) {
         resolved = true
         resolve([...collected])
-      } else if (!resolved && settledCount >= 3) {
+      } else if (!resolved && settledCount >= 4) {
         resolved = true
         resolve([...collected])
       }
     }
+    void googlePromise.then(handleBatch)
     void arcgisDirectPromise.then(handleBatch)
     void nominatimPromise.then(handleBatch)
     void backendPromise.then(handleBatch)
@@ -576,10 +586,41 @@ export async function fetchMapPointsApi(): Promise<MapFloodPoint[]> {
 export async function fetchCurrentWeather(): Promise<WeatherSnapshot | null> {
   try {
     const res = await fetch(`${API_BASE}/weather/current`)
-    if (!res.ok) return null
-    return (await res.json()) as WeatherSnapshot
+    if (res.ok) {
+      return (await res.json()) as WeatherSnapshot
+    }
   } catch {
-    return null
+    // ignore
+  }
+
+  try {
+    const real = await fetchFullRealWeather(10.7769, 106.7009, "Hồ Chí Minh")
+    return {
+      provider: "Open-Meteo",
+      locationName: real.locationName,
+      temperatureC: real.tempC,
+      humidityPercent: real.humidityPercent,
+      windSpeedKmh: real.windSpeedKmh,
+      currentRainMm: real.hourly[0]?.rainMm ?? 0,
+      weatherCondition: real.condition,
+      floodRiskLevel:
+        (real.hourly[0]?.rainMm ?? 0) > 15
+          ? "Cao"
+          : (real.hourly[0]?.rainMm ?? 0) > 5
+            ? "Trung bình"
+            : "Thấp",
+    }
+  } catch {
+    return {
+      provider: "Default",
+      locationName: "Hồ Chí Minh",
+      temperatureC: 31,
+      humidityPercent: 75,
+      windSpeedKmh: 10,
+      currentRainMm: 0,
+      weatherCondition: "Nắng ráo",
+      floodRiskLevel: "Thấp",
+    }
   }
 }
 
@@ -822,6 +863,15 @@ export async function reverseGeocodeApi(
   lat: number,
   lng: number,
 ): Promise<{ location: string; district: string; coords: [number, number] }> {
+  try {
+    const googleRes = await reverseGeocodeWithGoogle(lat, lng)
+    if (googleRes && googleRes.location) {
+      return googleRes
+    }
+  } catch {
+    // ignore
+  }
+
   const fallbackDistrict = getClosestHcmDistrict(lat, lng)
 
   try {

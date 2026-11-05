@@ -20,6 +20,7 @@ export type IconName =
   | "route"
   | "shield"
   | "straight"
+  | "sun"
   | "swap"
   | "turn-left"
   | "turn-right"

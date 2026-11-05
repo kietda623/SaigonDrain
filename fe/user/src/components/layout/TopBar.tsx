@@ -44,7 +44,7 @@ function TopBar({
 
   const weatherLabel = weather
     ? `${weather.weatherCondition} · ${Math.round(weather.temperatureC)}°C`
-    : "Mưa lớn · 27°C"
+    : "Nắng ráo · 31°C"
 
   return (
     <header className={`top-bar ${activeMainTab === "weather" ? "in-weather-mode" : ""}`}>
@@ -84,7 +84,15 @@ function TopBar({
             title="Nhấn để đồng bộ thời tiết thực tế (Open-Meteo API)"
             type="button"
           >
-            <Icon name="rain" size={16} />
+            <Icon
+              name={
+                weather?.weatherCondition?.toLowerCase().includes("mưa") ||
+                (weather?.currentRainMm ?? 0) > 0
+                  ? "rain"
+                  : "sun"
+              }
+              size={16}
+            />
             <span className="weather-chip-text">{weatherLabel}</span>
           </button>
         )}
