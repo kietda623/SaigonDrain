@@ -19,6 +19,17 @@ export class QueryMapPointsDto {
   @IsOptional()
   @IsIn(['all', 'critical', 'high', 'medium'])
   severity?: 'all' | PointSeverity;
+
+  @ApiPropertyOptional({ example: 0, description: 'Lượng mưa (mm) để suy luận rủi ro thời gian thực' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  rainMm?: number;
+
+  @ApiPropertyOptional({ example: 'realtime', enum: ['realtime', 'history'], description: 'Chế độ thời gian thực hoặc xem toàn bộ 250 điểm lịch sử' })
+  @IsOptional()
+  @IsString()
+  mode?: 'realtime' | 'history';
 }
 
 export class CreateMapPointDto {

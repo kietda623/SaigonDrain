@@ -59,7 +59,8 @@ function calculateEta(minutesStr?: string): string {
 }
 
 function App() {
-  const [forecastIndex, setForecastIndex] = useState(1)
+  const [forecastIndex, setForecastIndex] = useState(0)
+  const [mapMode, setMapMode] = useState<"realtime" | "history">("realtime")
   const [selectedRoute, setSelectedRoute] = useState<RouteId>("safe")
   const [reportOpen, setReportOpen] = useState(false)
   const [authOpen, setAuthOpen] = useState(false)
@@ -97,6 +98,20 @@ function App() {
   const [navigationSteps, setNavigationSteps] = useState<NavigationStep[]>([])
   const [weather, setWeather] = useState<WeatherSnapshot | null>(null)
   const [isLiveBackend, setIsLiveBackend] = useState(false)
+
+  // Tự động chẩn đoán và cập nhật điểm ngập theo thời tiết thực và mốc dự báo được chọn
+  useEffect(() => {
+    let active = true
+    const currentSlot = forecasts[forecastIndex] ?? forecasts[0]
+    const slotRain = currentSlot ? Number.parseInt(currentSlot.rain, 10) || 0 : (weather?.currentRainMm ?? 0)
+
+    async function updatePoints() {
+      const pts = await fetchMapPointsApi(slotRain, mapMode)
+      if (active) setFloodPoints(pts)
+    }
+    updatePoints()
+    return () => { active = false }
+  }, [forecastIndex, mapMode, forecasts, weather])
 
   useEffect(() => {
     let active = true
@@ -305,6 +320,8 @@ function App() {
         <MapCanvas
           destination={destination}
           floodPoints={floodPoints}
+          mapMode={mapMode}
+          onToggleMapMode={() => setMapMode((prev) => (prev === "realtime" ? "history" : "realtime"))}
           isNavigating={isNavigating}
           navStepIndex={navStepIndex}
           navigationSteps={navigationSteps}

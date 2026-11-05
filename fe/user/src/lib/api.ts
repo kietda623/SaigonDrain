@@ -564,43 +564,40 @@ export async function searchPlacesApi(
   return finalResults
 }
 
-export async function fetchMapPointsApi(): Promise<MapFloodPoint[]> {
+export async function fetchMapPointsApi(
+  rainMm?: number,
+  mode: "realtime" | "history" = "realtime",
+): Promise<MapFloodPoint[]> {
+  const query = new URLSearchParams()
+  if (rainMm !== undefined) query.set("rainMm", String(rainMm))
+  if (mode) query.set("mode", mode)
+
   try {
-    const res = await fetch(`${API_BASE}/map/points`)
+    const res = await fetch(`${API_BASE}/map/points?${query.toString()}`)
     if (res.ok) {
       const data = await res.json()
-      const points = Array.isArray(data) && data.length > 0 ? (data as MapFloodPoint[]) : []
-      if (points.length > 0) {
+      if (Array.isArray(data)) {
         registerDynamicPlaces(
-          points.map((pt) => ({
+          data.map((pt) => ({
             label: pt.district ? `${pt.label} · ${pt.district}` : pt.label,
             address: `${pt.label}, ${pt.district || "TP. Hồ Chí Minh"}`,
             district: pt.district || "TP. Hồ Chí Minh",
             coords: [pt.lng, pt.lat],
           })),
         )
-        return points
+        return data as MapFloodPoint[]
       }
     }
   } catch {
-    // Offline / Backend disconnected fallback
+    // Fallback suy luận trực tiếp tại Client
   }
 
-  // Nạp 250 điểm ngập lịch sử khoa học IRD (2002-2026) khi backend chưa bật
-  const fallbackPoints: MapFloodPoint[] = (defaultHotspots as any[]).map((h) => ({
-    id: h.id,
-    lat: h.lat,
-    lng: h.lng,
-    label: h.label,
-    district: h.district,
-    type: "flood",
-    severity: h.severity,
-    depth: h.depth,
-    rainfall: h.rainfallThresholdMm || 50,
-  }))
+  // Thuật toán suy luận chẩn đoán thời gian thực (Client-side AI Inference)
+  const allHotspots = defaultHotspots as any[]
 
+  // Luôn nạp 250 tuyến đường vào bộ gợi ý tìm kiếm
   registerDynamicPlaces(
-    fallbackPoints.map((pt) => ({
+    allHotspots.map((pt) => ({
       label: pt.district ? `${pt.label} · ${pt.district}` : pt.label,
       address: `${pt.label}, ${pt.district || "TP. Hồ Chí Minh"}`,
       district: pt.district || "TP. Hồ Chí Minh",
@@ -608,7 +605,72 @@ export async function fetchMapPointsApi(): Promise<MapFloodPoint[]> {
     })),
   )
 
-  return fallbackPoints
+  // 1. Chế độ xem toàn bộ 250 điểm đen lịch sử 2002-2026
+  if (mode === "history") {
+    return allHotspots.map((h) => ({
+      id: h.id,
+      lat: h.lat,
+      lng: h.lng,
+      label: h.label,
+      district: h.district,
+      type: "flood",
+      severity: h.severity,
+      depth: h.depth || 25,
+      rainfall: h.rainfallThresholdMm || 50,
+    }))
+  }
+
+  // 2. Chế độ chẩn đoán thời gian thực theo lượng mưa thực tế
+  const actualRain = rainMm ?? 0
+  const vnHour = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" })).getHours()
+  const isTidePeak = (vnHour >= 16 && vnHour <= 19) || (vnHour >= 4 && vnHour <= 7)
+
+  // Nếu trời khô ráo (mưa < 5mm) và ngoài giờ triều cường: ĐƯỜNG KHÔ RÁO HOÀN TOÀN!
+  if (actualRain < 5 && !isTidePeak) {
+    return []
+  }
+
+  const predictedPoints: MapFloodPoint[] = []
+
+  for (const h of allHotspots) {
+    const elevation = h.elevationM || 2.0
+    const terrainFactor = elevation <= 1.5 ? 1.4 : elevation <= 3.0 ? 1.0 : 0.7
+    const effectiveRain = actualRain * terrainFactor
+    const threshold = h.rainfallThresholdMm || 35
+
+    const isRainFlooded = actualRain >= 5 && effectiveRain >= threshold
+    const isTideFlooded = isTidePeak && (
+      h.district?.includes("7") ||
+      h.district?.includes("Nhà Bè") ||
+      h.district?.includes("Bình Thạnh") ||
+      h.district?.includes("Thủ Đức")
+    ) && elevation <= 1.5
+
+    if (!isRainFlooded && !isTideFlooded) continue
+
+    let dynamicDepth = 15
+    if (isRainFlooded) {
+      dynamicDepth = Math.min(h.depth || 40, Math.round((effectiveRain - threshold) * 0.75 + 15))
+    } else if (isTideFlooded) {
+      dynamicDepth = Math.round(15 + (1.6 - Math.min(elevation, 1.5)) * 15)
+    }
+
+    const severity = dynamicDepth >= 35 ? "critical" : dynamicDepth >= 20 ? "high" : "medium"
+
+    predictedPoints.push({
+      id: h.id,
+      lat: h.lat,
+      lng: h.lng,
+      label: h.label,
+      district: h.district,
+      type: "flood",
+      severity,
+      depth: dynamicDepth,
+      rainfall: actualRain,
+    })
+  }
+
+  return predictedPoints
 }
 
 export async function fetchCurrentWeather(): Promise<WeatherSnapshot | null> {

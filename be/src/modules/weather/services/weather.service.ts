@@ -273,19 +273,10 @@ export class WeatherService {
     const snapshot = await this.getCurrentWeather();
     const hourly = snapshot.hourlyForecast ?? [];
 
-    const nowRain = Math.max(8, Math.round(snapshot.currentRainMm || 8));
-    const slot30Rain = Math.max(
-      24,
-      Math.round(hourly[1]?.rainMm ? hourly[1].rainMm * 4 + 20 : 34),
-    );
-    const slot60Rain = Math.max(
-      38,
-      Math.round(hourly[2]?.rainMm ? hourly[2].rainMm * 5 + 30 : 51),
-    );
-    const slot90Rain = Math.max(
-      15,
-      Math.round(hourly[3]?.rainMm ? hourly[3].rainMm * 3 + 15 : 23),
-    );
+    const nowRain = Math.round((snapshot.currentRainMm || 0) * 10) / 10;
+    const slot30Rain = Math.round((hourly[1]?.rainMm ?? (snapshot.currentRainMm || 0)) * 10) / 10;
+    const slot60Rain = Math.round((hourly[2]?.rainMm ?? 0) * 10) / 10;
+    const slot90Rain = Math.round((hourly[3]?.rainMm ?? 0) * 10) / 10;
 
     const slots: ForecastSlotEntity[] = [
       {

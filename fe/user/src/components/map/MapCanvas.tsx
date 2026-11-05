@@ -24,6 +24,8 @@ function MapCanvas({
   navigationSteps = [],
   recenterTrigger = 0,
   stepForwardTrigger = 0,
+  mapMode = "realtime",
+  onToggleMapMode,
   onStepChange,
   onProgressUpdate,
 }: {
@@ -37,6 +39,8 @@ function MapCanvas({
   navigationSteps?: any[]
   recenterTrigger?: number
   stepForwardTrigger?: number
+  mapMode?: "realtime" | "history"
+  onToggleMapMode?: () => void
   onStepChange?: (stepIndex: number) => void
   onProgressUpdate?: (info: {
     distanceToTurnM: number
@@ -815,9 +819,12 @@ function MapCanvas({
     for (const pt of floodPoints) {
       if (pt.type !== "flood" && pt.type !== "pending" && pt.type !== "risk")
         continue
+      // Không vẽ các điểm khô ráo depth <= 0
+      if ((pt.depth || 0) <= 0) continue
+
       const el = document.createElement("div")
       el.className = `libre-flood-marker ${pt.severity} severity-${pt.severity}`
-      el.title = `${pt.label} (${pt.district}) · Ngập ${pt.depth || 20} cm · Mưa ${pt.rainfall} mm`
+      el.title = `${pt.label} (${pt.district}) · Mực nước ngập: ${pt.depth} cm · Mưa: ${pt.rainfall} mm`
       el.innerHTML = `<span class="libre-flood-pulse"></span><span class="flood-label">${pt.label}${pt.depth ? ` · ${pt.depth}cm` : ""}</span>`
 
       const marker = new maplibregl.Marker({
@@ -885,7 +892,11 @@ function MapCanvas({
 
   const statusText =
     routeStatus === "idle"
-      ? "Nhập Điểm đi và Điểm đến để tìm lộ trình tránh ngập"
+      ? mapMode === "history"
+        ? "📚 Đang hiển thị 250 điểm đen ngập lụt lịch sử TP.HCM (IRD 2002–2026)"
+        : floodPoints.length === 0
+          ? "☀️ TP.HCM khô ráo (0 mm mưa) · Các tuyến đường thông thoáng không ngập"
+          : `🌧️ Chẩn đoán ${floodPoints.length} tuyến đường có nguy cơ ngập theo thời tiết thực`
       : routeStatus === "live"
         ? `Tuyến thực tế · ${routesData[route].distance} · ${routesData[route].time}`
         : routeStatus === "fallback"
@@ -900,8 +911,33 @@ function MapCanvas({
         ref={containerRef}
       />
 
-      {/* Bộ chuyển đổi lớp Bản đồ Google Maps / Vệ tinh / Giao thông */}
-      <div className="map-layer-control-wrap" ref={layerMenuRef}>
+      {/* Nhóm điều khiển bản đồ: Kiểu Google Maps & Chế độ Realtime / 250 Điểm IRD */}
+      <div className="map-controls-group">
+        <button
+          type="button"
+          className={`map-mode-toggle-btn ${mapMode === "history" ? "is-history" : "is-realtime"}`}
+          onClick={onToggleMapMode}
+          title={
+            mapMode === "realtime"
+              ? "Đang ở chế độ: Chẩn đoán Real-time theo thời tiết thực (Bấm để xem 250 điểm lịch sử)"
+              : "Đang xem: 250 Điểm đen ngập lụt IRD 2002-2026 (Bấm để về Real-time)"
+          }
+          aria-label="Chuyển chế độ xem bản đồ ngập"
+        >
+          {mapMode === "history" ? (
+            <>
+              <span className="mode-badge-icon">📚</span>
+              <span>250 Điểm IRD</span>
+            </>
+          ) : (
+            <>
+              <span className="mode-live-dot" />
+              <span>Realtime AI</span>
+            </>
+          )}
+        </button>
+
+        <div className="map-layer-control-wrap" ref={layerMenuRef}>
         <button
           type="button"
           className={`map-layer-btn ${showLayerMenu ? "active" : ""}`}
@@ -1004,6 +1040,7 @@ function MapCanvas({
             </div>
           </div>
         )}
+        </div>
       </div>
 
       <div className="libre-route-status">

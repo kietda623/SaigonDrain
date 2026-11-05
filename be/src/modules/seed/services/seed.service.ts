@@ -36,11 +36,14 @@ export class SeedService implements OnApplicationBootstrap {
   ) {}
 
   async onApplicationBootstrap() {
-    const reportCount = await this.reportRepo.count();
-    if (reportCount === 0) {
-      this.logger.log('Cơ sở dữ liệu trống — đang khởi tạo dữ liệu mẫu SaigonDrain AI...');
+    const p1 = await this.mapPointRepo.findOne({ where: { id: 'p1' } });
+    const count = await this.mapPointRepo.count();
+    if (p1 || count < 50) {
+      this.logger.log('Phát hiện dữ liệu mẫu cũ — đang dọn sạch và nạp 250 điểm ngập khoa học IRD (2002-2026)...');
+      await this.mapPointRepo.clear();
+      await this.forecastRepo.clear();
       await this.seedAll();
-      this.logger.log('Khởi tạo dữ liệu mẫu SaigonDrain AI hoàn tất!');
+      this.logger.log('Khởi tạo 250 điểm thực nghiệm IRD hoàn tất!');
     }
   }
 
