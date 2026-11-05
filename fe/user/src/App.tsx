@@ -296,6 +296,7 @@ function App() {
           setExpanded={() => undefined}
           setForecastIndex={setForecastIndex}
           setSelectedRoute={setSelectedRoute}
+          weather={weather}
         />
             </div>
           )}
@@ -336,28 +337,53 @@ function App() {
 
           {!isNavigating && (
             <button
-              className={`map-risk-card zone-${forecast.zone}`}
+              className={`map-risk-card ${rainValue > 0 || forecast.zone > 0 ? `zone-${forecast.zone}` : "is-sunny"}`}
               onClick={() => {
                 setActiveTab("tracking")
                 setPanelExpanded(true)
               }}
               type="button"
             >
-              <span className="map-risk-icon">
-                <Icon name={forecast.zone === 2 ? "alert" : "rain"} size={22} />
+              <span className={`map-risk-icon ${rainValue > 0 || forecast.zone > 0 ? "" : "is-sunny"}`}>
+                <Icon
+                  name={
+                    forecast.zone === 2
+                      ? "alert"
+                      : rainValue > 0 || forecast.zone === 1
+                        ? "rain"
+                        : "sun"
+                  }
+                  size={22}
+                />
               </span>
               <span className="map-risk-copy">
-                <small>{forecast.label}</small>
-                <strong>
-                  {forecast.rain} mưa · nguy cơ {forecast.risk.toLowerCase()}
-                </strong>
-                <WaterGauge
-                  compact
-                  label="mm mưa"
-                  max={60}
-                  tone={forecast.zone}
-                  value={rainValue}
-                />
+                {rainValue > 0 || forecast.zone > 0 ? (
+                  <>
+                    <small>{forecast.label}</small>
+                    <strong>
+                      {forecast.rain} mưa · nguy cơ {forecast.risk.toLowerCase()}
+                    </strong>
+                    <WaterGauge
+                      compact
+                      label="mm mưa"
+                      max={60}
+                      tone={forecast.zone}
+                      value={rainValue}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <small>
+                      {forecast.label} · {weather ? Math.round(weather.temperatureC) : 31}°C
+                    </small>
+                    <strong>
+                      {weather?.weatherCondition || "Trời nắng ráo"} · An toàn di chuyển
+                    </strong>
+                    <span className="weather-safe-note">
+                      Đường khô ráo, không có nguy cơ ngập
+                    </span>
+                  </>
+                )}
               </span>
               <Icon name="chevron" size={18} />
             </button>
@@ -556,6 +582,7 @@ function App() {
             setExpanded={setPanelExpanded}
             setForecastIndex={setForecastIndex}
             setSelectedRoute={setSelectedRoute}
+            weather={weather}
           />
         </div>
       )}

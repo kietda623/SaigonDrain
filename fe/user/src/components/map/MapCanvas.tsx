@@ -83,6 +83,19 @@ function MapCanvas({
     return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [])
 
+  // Khi bat dau / ket thuc dan duong, tu dong resize de MapLibre phu kin 100% man hinh
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    map.resize()
+    const t1 = setTimeout(() => map.resize(), 50)
+    const t2 = setTimeout(() => map.resize(), 200)
+    return () => {
+      clearTimeout(t1)
+      clearTimeout(t2)
+    }
+  }, [isNavigating])
+
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return
 
