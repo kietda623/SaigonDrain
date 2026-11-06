@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Droplets, Filter, MapPin, Radar, Sparkles } from "lucide-react"
+import { Droplets, Filter, History, MapPin, Radar } from "lucide-react"
 import OperationsMap from "@/components/map/OperationsMap"
 import SectionHeader from "@/components/ui/SectionHeader"
 import StatusPill from "@/components/ui/StatusPill"
@@ -24,112 +24,67 @@ function MapPage({
   severityFilter: "all" | Severity
   setSeverityFilter: (value: "all" | Severity) => void
 }) {
-  const [mapMode, setMapMode] = useState<"realtime" | "history">("realtime")
-  const [causeFilter, setCauseFilter] = useState<"all" | "Rain" | "High tide" | "Combined">("all")
   const [districtFilter, setDistrictFilter] = useState<string>("all")
 
-  // Danh sách các quận có điểm ngập
-  const districts = Array.from(new Set(points.map((p) => p.district).filter(Boolean))).sort()
+  // Danh sách các quận/huyện có điểm trên bản đồ
+  const districts = Array.from(
+    new Set(points.map((p) => p.district).filter(Boolean)),
+  ).sort((a, b) => a.localeCompare(b, "vi"))
 
-  // Lọc điểm theo chế độ xem
+  // Lọc điểm theo quận huyện được chọn
   const filteredPoints = points.filter((p) => {
-    if (mapMode === "realtime") {
-      // Ở chế độ Realtime, chỉ hiển thị những điểm đang ngập thật sự hoặc trạm cảm biến
-      return p.type === "sensor" || (p.depth || 0) > 0
-    }
-
-    // Chế độ xem 250 Điểm đen lịch sử IRD
-    if (districtFilter !== "all" && p.district !== districtFilter) return false
-    if (causeFilter !== "all") {
-      const pCauses = (p as any).causes || [(p as any).primaryCause]
-      const matchRain = causeFilter === "Rain" && (pCauses.includes("Mưa lớn") || pCauses.includes("Rain"))
-      const matchTide = causeFilter === "High tide" && (pCauses.includes("Triều cường") || pCauses.includes("High tide"))
-      const matchComb = causeFilter === "Combined" && (pCauses.includes("Mưa & Triều") || pCauses.includes("Combined"))
-      if (!matchRain && !matchTide && !matchComb) return false
+    if (districtFilter !== "all" && p.district !== districtFilter) {
+      return false
     }
     return true
   })
 
-  const pendingCount = reports.filter(
-    (report) => report.status === "pending",
+  const floodPointsCount = filteredPoints.filter(
+    (point) =>
+      (point.type === "flood" || point.type === "pending") &&
+      (point.depth || 0) > 0,
   ).length
-  const floodPointsCount = filteredPoints.filter((point) => point.type === "flood" && (point.depth || 0) > 0).length
-  const riskPointsCount = filteredPoints.filter((point) => point.type === "risk").length
+  const riskPointsCount = filteredPoints.filter(
+    (point) => point.type === "risk",
+  ).length
+  const historyPointsCount = filteredPoints.filter(
+    (point) => point.type === "history",
+  ).length
 
   return (
     <div className="page-stack">
       <SectionHeader
         action={
-          <StatusPill tone={mapMode === "realtime" ? "safe" : "info"}>
-            {mapMode === "realtime" ? "Chẩn đoán Realtime AI" : "250 Điểm IRD (2002–2026)"}
+          <StatusPill tone="safe">
+            Chẩn đoán Realtime AI
           </StatusPill>
         }
         description="Giám sát ngập lụt đô thị TP.HCM kết hợp thời tiết thực và 425 quan trắc lịch sử 24 năm."
         title="Bản đồ Tác nghiệp & Điều hành"
       />
 
-      {/* Thanh chuyển chế độ Realtime AI vs 250 Điểm IRD */}
+      {/* Thanh Giám sát & Bộ lọc theo Quận/Huyện */}
       <div className="panel map-mode-bar">
-        <div className="map-mode-tabs">
-          <button
-            type="button"
-            className={`map-mode-tab-btn ${mapMode === "realtime" ? "active" : ""}`}
-            onClick={() => setMapMode("realtime")}
-          >
+        <div className="map-monitor-bar">
+          <div className="map-monitor-badge">
             <span className="live-dot" />
-            <span>⚡ Giám sát Thời gian thực (Realtime)</span>
-          </button>
-          <button
-            type="button"
-            className={`map-mode-tab-btn ${mapMode === "history" ? "active is-history" : ""}`}
-            onClick={() => setMapMode("history")}
-          >
-            <span>📚 Toàn bộ 250 Điểm đen IRD (2002–2026)</span>
-          </button>
-        </div>
+            <span>⚡ Giám sát</span>
+          </div>
 
-        {mapMode === "history" && (
-          <div className="history-sub-filters">
-            <div className="cause-pills">
-              <span className="filter-label"><Filter size={14} /> Nguyên nhân:</span>
-              <button
-                type="button"
-                className={`cause-pill ${causeFilter === "all" ? "active" : ""}`}
-                onClick={() => setCauseFilter("all")}
-              >
-                Tất cả (250)
-              </button>
-              <button
-                type="button"
-                className={`cause-pill ${causeFilter === "Rain" ? "active" : ""}`}
-                onClick={() => setCauseFilter("Rain")}
-              >
-                Mưa lớn (198)
-              </button>
-              <button
-                type="button"
-                className={`cause-pill ${causeFilter === "High tide" ? "active" : ""}`}
-                onClick={() => setCauseFilter("High tide")}
-              >
-                Triều cường (176)
-              </button>
-              <button
-                type="button"
-                className={`cause-pill ${causeFilter === "Combined" ? "active" : ""}`}
-                onClick={() => setCauseFilter("Combined")}
-              >
-                Mưa & Triều (51)
-              </button>
-            </div>
-
+          <div className="map-monitor-filters">
+            <span className="filter-label">
+              <Filter size={14} /> Lọc quận/huyện:
+            </span>
             <div className="district-filter-wrap">
               <select
                 className="district-select"
                 value={districtFilter}
                 onChange={(e) => setDistrictFilter(e.target.value)}
-                aria-label="Lọc theo quận"
+                aria-label="Lọc theo quận/huyện"
               >
-                <option value="all">Tất cả quận/huyện ({points.length})</option>
+                <option value="all">
+                  Tất cả quận/huyện ({districts.length})
+                </option>
                 {districts.map((d) => (
                   <option key={d} value={d}>
                     {d}
@@ -138,7 +93,7 @@ function MapPage({
               </select>
             </div>
           </div>
-        )}
+        </div>
       </div>
 
       <div className="map-stat-row">
@@ -148,7 +103,7 @@ function MapPage({
           </span>
           <div>
             <strong>{filteredPoints.length}</strong>
-            <span>{mapMode === "realtime" ? "Điểm đang hoạt động" : "Điểm đen hiển thị"}</span>
+            <span>Điểm đang hiển thị</span>
           </div>
         </div>
         <div className="map-stat">
@@ -157,7 +112,7 @@ function MapPage({
           </span>
           <div>
             <strong>{floodPointsCount}</strong>
-            <span>Điểm ngập {mapMode === "realtime" ? "hiện tại" : "kinh niên"}</span>
+            <span>Điểm ngập hiện tại</span>
           </div>
         </div>
         <div className="map-stat">
@@ -166,16 +121,22 @@ function MapPage({
           </span>
           <div>
             <strong>{riskPointsCount}</strong>
-            <span>Điểm theo dõi nguy cơ</span>
+            <span>Điểm nguy cơ cao</span>
           </div>
         </div>
         <div className="map-stat">
-          <span className="map-stat-icon rain">
-            <Droplets size={18} />
+          <span
+            className="map-stat-icon"
+            style={{
+              background: "rgba(139, 92, 246, 0.15)",
+              color: "#7c3aed",
+            }}
+          >
+            <History size={18} />
           </span>
           <div>
-            <strong>{pendingCount}</strong>
-            <span>Báo cáo chờ xác minh</span>
+            <strong>{historyPointsCount}</strong>
+            <span>Điểm đen lịch sử IRD</span>
           </div>
         </div>
       </div>
@@ -201,7 +162,9 @@ function MapPage({
           <div>
             <i className="legend-dot critical" />
             <strong>Nghiêm trọng (Đỏ)</strong>
-            <span>Mực nước trên 35 cm, xe máy chết máy, cần điều tiết giao thông.</span>
+            <span>
+              Mực nước trên 35 cm, xe máy chết máy, cần điều tiết giao thông.
+            </span>
           </div>
           <div>
             <i className="legend-dot high" />
@@ -214,9 +177,11 @@ function MapPage({
             <span>Mực nước 10 – 20 cm, di chuyển chậm được.</span>
           </div>
           <div>
-            <i className="legend-dot safe" />
-            <strong>Khô ráo / Theo dõi (Xanh)</strong>
-            <span>Điểm đen lịch sử đang ở trạng thái an toàn, không có mưa ngập.</span>
+            <i className="legend-dot" style={{ background: "#7c3aed" }} />
+            <strong>Lịch sử ngập IRD (Tím)</strong>
+            <span>
+              250 điểm đen ngập kinh niên qua 24 năm quan trắc khoa học (2002–2026).
+            </span>
           </div>
         </div>
       </section>

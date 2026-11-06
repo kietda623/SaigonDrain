@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { ChevronDown, MoreHorizontal, Search, ShieldCheck, UserCheck, Users, UserX, X } from "lucide-react"
+import { ChevronDown, MoreHorizontal, Search, ShieldCheck, UserCheck, Users, UserX } from "lucide-react"
 import Button from "@/components/ui/Button"
 import IconButton from "@/components/ui/IconButton"
 import Heading from "@/components/ui/Heading"
@@ -24,6 +24,13 @@ function UserManagement({
   const trustedUsers = users.filter((user) => user.trustScore >= 85).length
   const reviewUsers = users.filter((user) => user.status === "review").length
 
+  const activePercent =
+    users.length > 0
+      ? ((activeUsers / users.length) * 100).toFixed(1).replace(".", ",")
+      : "0"
+  const trustedPercent =
+    users.length > 0 ? Math.round((trustedUsers / users.length) * 100) : 0
+
   return (
     <div className="users-page">
       <section className="user-summary-grid">
@@ -34,7 +41,7 @@ function UserManagement({
           <div>
             <span>Tổng người dùng</span>
             <strong>{users.length}</strong>
-            <small>Từ bảng community_users (PostgreSQL)</small>
+            <small>Đồng bộ từ bảng community_users ({users.length} tài khoản)</small>
           </div>
         </div>
         <div className="user-summary-card">
@@ -44,7 +51,7 @@ function UserManagement({
           <div>
             <span>Đang hoạt động</span>
             <strong>{activeUsers}</strong>
-            <small>86,5% tổng tài khoản</small>
+            <small>{activePercent}% tổng tài khoản</small>
           </div>
         </div>
         <div className="user-summary-card">
@@ -54,7 +61,7 @@ function UserManagement({
           <div>
             <span>Độ tin cậy cao</span>
             <strong>{trustedUsers}</strong>
-            <small>Điểm tín nhiệm từ 85</small>
+            <small>{trustedPercent}% điểm tín nhiệm cao (≥ 85)</small>
           </div>
         </div>
         <div className="user-summary-card">
@@ -64,7 +71,11 @@ function UserManagement({
           <div>
             <span>Cần xem xét</span>
             <strong>{reviewUsers}</strong>
-            <small>4 hồ sơ mới hôm nay</small>
+            <small>
+              {reviewUsers > 0
+                ? `${reviewUsers} tài khoản cần kiểm duyệt`
+                : "0 tài khoản vi phạm"}
+            </small>
           </div>
         </div>
       </section>
@@ -214,6 +225,5 @@ function UserManagement({
     </div>
   )
 }
-
 
 export default UserManagement

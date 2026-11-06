@@ -16,6 +16,31 @@ import { severityLabel } from "@/lib/severity"
 import { reportStatusCounts } from "@/lib/analytics"
 import type { FloodReport, ReportStatus, Severity } from "@/types"
 
+const HCMC_ADMIN_DISTRICTS = [
+  "Quận 1",
+  "Quận 3",
+  "Quận 4",
+  "Quận 5",
+  "Quận 6",
+  "Quận 7",
+  "Quận 8",
+  "Quận 10",
+  "Quận 11",
+  "Quận 12",
+  "Bình Thạnh",
+  "Gò Vấp",
+  "Phú Nhuận",
+  "Tân Bình",
+  "Tân Phú",
+  "Bình Tân",
+  "TP. Thủ Đức",
+  "Củ Chi",
+  "Hóc Môn",
+  "Bình Chánh",
+  "Nhà Bè",
+  "Cần Giờ",
+]
+
 const severityTone: Record<Severity, "danger" | "watch" | "neutral"> = {
   critical: "danger",
   high: "watch",
@@ -47,12 +72,15 @@ function ReportsPage({
   const [status, setStatus] = useState<"all" | ReportStatus>("all")
   const [severity, setSeverity] = useState<"all" | Severity>("all")
   const [district, setDistrict] = useState("all")
+  const [timeRange, setTimeRange] = useState<"all" | "today" | "3d" | "7d">("all")
   const [query, setQuery] = useState("")
 
-  const districts = useMemo(
-    () => [...new Set(reports.map((report) => report.district))],
-    [reports],
-  )
+  const allDistricts = useMemo(() => {
+    const reportDistricts = reports.map((report) => report.district).filter(Boolean)
+    const set = new Set([...HCMC_ADMIN_DISTRICTS, ...reportDistricts])
+    return Array.from(set).sort((a, b) => a.localeCompare(b, "vi"))
+  }, [reports])
+
   const counts = reportStatusCounts(reports)
 
   const filtered = reports.filter((report) => {
@@ -61,10 +89,24 @@ function ReportsPage({
       severity === "all" || report.severity === severity
     const matchesDistrict =
       district === "all" || report.district === district
+    const matchesTime =
+      timeRange === "all"
+        ? true
+        : timeRange === "today"
+          ? report.minutesAgo <= 1440
+          : timeRange === "3d"
+            ? report.minutesAgo <= 4320
+            : report.minutesAgo <= 10080
     const matchesQuery = `${report.id} ${report.location} ${report.district} ${report.description}`
       .toLowerCase()
       .includes(query.trim().toLowerCase())
-    return matchesStatus && matchesSeverity && matchesDistrict && matchesQuery
+    return (
+      matchesStatus &&
+      matchesSeverity &&
+      matchesDistrict &&
+      matchesTime &&
+      matchesQuery
+    )
   })
 
   return (
@@ -149,12 +191,29 @@ function ReportsPage({
                 onChange={(event) => setDistrict(event.target.value)}
                 value={district}
               >
-                <option value="all">Tất cả quận</option>
-                {districts.map((item) => (
+                <option value="all">Tất cả quận ({allDistricts.length})</option>
+                {allDistricts.map((item) => (
                   <option key={item} value={item}>
                     {item}
                   </option>
                 ))}
+              </select>
+              <ChevronDown size={15} />
+            </label>
+            <label className="compact-select">
+              <span className="sr-only">Lọc thời gian</span>
+              <select
+                onChange={(event) =>
+                  setTimeRange(
+                    event.target.value as "all" | "today" | "3d" | "7d",
+                  )
+                }
+                value={timeRange}
+              >
+                <option value="all">Mọi thời gian</option>
+                <option value="today">24 giờ qua</option>
+                <option value="3d">3 ngày qua</option>
+                <option value="7d">7 ngày qua</option>
               </select>
               <ChevronDown size={15} />
             </label>
@@ -228,7 +287,7 @@ function ReportsPage({
           </div>
         ) : (
           <EmptyState
-            description="Thử thay đổi từ khóa hoặc bộ lọc mức độ, quận."
+            description="Thử thay đổi từ khóa hoặc bộ lọc mức độ, quận, thời gian."
             icon={<Search size={24} />}
             title="Không có báo cáo phù hợp"
           />
