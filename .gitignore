@@ -11,3 +11,5 @@ build/
 logs/
 *.log
 .DS_Store
+*.zip
+.idea/

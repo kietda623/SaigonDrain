@@ -449,6 +449,8 @@ export default function App() {
           {page === "alerts" && (
             <AlertsPage
               alerts={alerts}
+              weather={weather}
+              points={mapPoints}
               onEdit={(alert) => setAlertModal({ mode: "edit", alert })}
               onEnd={setEndingAlert}
             />

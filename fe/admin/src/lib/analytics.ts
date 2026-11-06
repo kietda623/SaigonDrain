@@ -113,3 +113,35 @@ export function alertLevelCounts(alerts: AreaAlert[]) {
     ended: alerts.filter((alert) => alert.status === "ended").length,
   }
 }
+
+export function irdCausesBreakdown() {
+  return [
+    { label: "Mưa lớn (Rain)", count: 198, percent: 47, key: "rain" },
+    { label: "Triều cường (High tide)", count: 176, percent: 41, key: "watch" },
+    { label: "Mưa & Triều (Combined)", count: 51, percent: 12, key: "danger" },
+  ]
+}
+
+export function irdDistrictBreakdown() {
+  return [
+    { label: "TP. Thủ Đức", count: 112, percent: 45 },
+    { label: "Bình Thạnh", count: 46, percent: 18 },
+    { label: "Quận 7", count: 38, percent: 15 },
+    { label: "Nhà Bè", count: 24, percent: 10 },
+    { label: "Quận 12 & Gò Vấp", count: 20, percent: 8 },
+    { label: "Khác", count: 10, percent: 4 },
+  ]
+}
+
+export function irdTopSevereStreets() {
+  return [
+    { label: "Đường Quốc Hương (Thảo Điền)", count: 140, percent: 100, key: "critical" },
+    { label: "Đường Nguyễn Hữu Cảnh (Bình Thạnh)", count: 100, percent: 71, key: "critical" },
+    { label: "Đường Nguyễn Văn Hưởng (Thủ Đức)", count: 60, percent: 43, key: "high" },
+    { label: "Đường Trần Xuân Soạn (Quận 7)", count: 60, percent: 43, key: "high" },
+    { label: "Đường Lương Định Của (Thủ Đức)", count: 60, percent: 43, key: "high" },
+    { label: "Đường Huỳnh Tấn Phát (Quận 7)", count: 50, percent: 36, key: "high" },
+    { label: "Đường Ngô Tất Tố (Bình Thạnh)", count: 50, percent: 36, key: "high" },
+    { label: "Đường Ung Văn Khiêm (Bình Thạnh)", count: 40, percent: 29, key: "medium" },
+  ]
+}

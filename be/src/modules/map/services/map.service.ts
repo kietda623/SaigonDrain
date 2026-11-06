@@ -4,7 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { firstValueFrom } from 'rxjs';
-import { MapPointEntity } from '../models/map-point.entity';
+import { MapPointEntity, PointSeverity } from '../models/map-point.entity';
 import { FloodReportEntity } from '../../reports/models/flood-report.entity';
 import {
   CreateMapPointDto,
@@ -64,31 +64,87 @@ export class MapService {
 
   async findAllPoints(query: QueryMapPointsDto): Promise<MapPointEntity[]> {
     const allPoints = await this.mapPointRepo.find();
+
+    // 1. Nếu người dùng chọn chế độ xem toàn bộ 250 điểm đen lịch sử
+    if (query.mode === 'history') {
+      return allPoints;
+    }
+
+    // 2. Chế độ chẩn đoán ngập theo thời tiết thời gian thực (Realtime AI Inference)
+    let rainMm = query.rainMm !== undefined ? Number(query.rainMm) : undefined;
+    if (rainMm === undefined) {
+      try {
+        const weather = await this.weatherService.getCurrentWeather();
+        rainMm = Number(weather?.currentRainMm ?? 0);
+      } catch {
+        rainMm = 0;
+      }
+    }
+
+    // Tính chu kỳ triều cường sông Sài Gòn (thường đạt đỉnh 16h30-19h00 chiều hoặc 04h30-07h00 sáng)
+    const vnHour = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' })).getHours();
+    const isTidePeak = (vnHour >= 16 && vnHour <= 19) || (vnHour >= 4 && vnHour <= 7);
+
     const activeLayers = query.layers
       ? query.layers.split(',').map((s) => s.trim())
       : ['flood', 'risk', 'rain', 'history'];
 
-    return allPoints.filter((point) => {
-      if (
-        query.severity &&
-        query.severity !== 'all' &&
-        point.severity !== query.severity
-      ) {
-        return false;
+    const dynamicPoints: MapPointEntity[] = [];
+
+    for (const point of allPoints) {
+      if (point.type === 'sensor') {
+        if (activeLayers.includes('rain')) dynamicPoints.push(point);
+        continue;
       }
 
-      const matchFlood =
-        activeLayers.includes('flood') &&
-        (point.type === 'flood' || point.type === 'pending');
-      const matchRisk =
-        activeLayers.includes('risk') && point.type === 'risk';
-      const matchRain =
-        activeLayers.includes('rain') && point.type === 'sensor';
-      const matchHistory =
-        activeLayers.includes('history') && point.historyCount >= 10;
+      const elevation = point.elevationM || 2.0;
+      const terrainFactor = elevation <= 1.5 ? 1.4 : elevation <= 3.0 ? 1.0 : 0.7;
+      const effectiveRain = rainMm * terrainFactor;
+      const threshold = point.rainfall || 35;
 
-      return matchFlood || matchRisk || matchRain || matchHistory;
-    });
+      const isRainFlooded = rainMm >= 5 && effectiveRain >= threshold;
+      const isTideFlooded = isTidePeak && (
+        point.district?.includes('7') || 
+        point.district?.includes('Nhà Bè') || 
+        point.district?.includes('Bình Thạnh') || 
+        point.district?.includes('Thủ Đức')
+      ) && elevation <= 1.5;
+
+      // Nếu không có mưa và không trong giờ triều cường: ĐƯỜNG KHÔ RÁO
+      if (!isRainFlooded && !isTideFlooded) {
+        // Chỉ thêm vào nếu người dùng cố ý bật lớp xem 'history' (lịch sử)
+        if (activeLayers.includes('history') && point.historyCount >= 10) {
+          dynamicPoints.push({
+            ...point,
+            depth: 0,
+            type: 'risk',
+          });
+        }
+        continue;
+      }
+
+      // Có ngập thực tế theo lượng mưa thời gian thực: tính độ sâu động
+      let dynamicDepth = 15;
+      if (isRainFlooded) {
+        dynamicDepth = Math.min(point.depth || 40, Math.round((effectiveRain - threshold) * 0.75 + 15));
+      } else if (isTideFlooded) {
+        dynamicDepth = Math.round(15 + (1.6 - Math.min(elevation, 1.5)) * 15);
+      }
+
+      const severity: PointSeverity = dynamicDepth >= 35 ? 'critical' : dynamicDepth >= 20 ? 'high' : 'medium';
+      if (query.severity && query.severity !== 'all' && severity !== query.severity) {
+        continue;
+      }
+
+      dynamicPoints.push({
+        ...point,
+        depth: dynamicDepth,
+        severity,
+        type: 'flood',
+      });
+    }
+
+    return dynamicPoints;
   }
 
   async findPointById(id: string) {

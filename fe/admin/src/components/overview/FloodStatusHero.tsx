@@ -17,13 +17,13 @@ function FloodStatusHero({
   onViewAlerts: () => void
   weather?: WeatherSnapshot | null
 }) {
-  const rainValue =
-    weather && weather.currentRainMm > 0
-      ? Math.round(weather.currentRainMm)
-      : 34
+  const rainValue = weather ? Math.round(weather.currentRainMm) : 0
+  const isRaining = rainValue > 0
   const riskLabel = weather?.floodRiskLevel
     ? `Nguy cơ ${weather.floodRiskLevel.toLowerCase()}`
-    : "Nguy cơ cao"
+    : isRaining
+      ? "Nguy cơ cao"
+      : "Nguy cơ thấp"
 
   return (
     <section className="flood-hero">
@@ -31,13 +31,18 @@ function FloodStatusHero({
         <span className="hero-eyebrow">
           <CloudRain size={16} />
           {weather
-            ? `Đồng bộ trực tiếp (${weather.provider}) · Ẩm ${weather.humidityPercent}%`
-            : "Cập nhật lúc 18:48 · Thứ Bảy 24/05"}
+            ? `Đồng bộ trực tiếp (${weather.provider}) · Ẩm ${weather.humidityPercent}% · ${weather.weatherCondition || "Thời gian thực"}`
+            : "Thời gian thực Open-Meteo"}
         </span>
-        <h2 className="hero-title">Mưa lớn đang mở rộng về phía Đông thành phố</h2>
+        <h2 className="hero-title">
+          {isRaining
+            ? `Mưa ${rainValue} mm · Hệ thống đang giám sát các điểm ngập`
+            : "Thời tiết TP.HCM khô ráo, không phát hiện mưa ngập"}
+        </h2>
         <p className="hero-sub">
-          Sáu phường có nguy cơ ngập trong 30–60 phút tới. Hệ thống đang theo dõi
-          mực nước tại các tuyến trũng và hành lang ven kênh.
+          {isRaining
+            ? "Hệ thống đang theo dõi mực nước tại các tuyến trũng và hành lang ven kênh theo thời gian thực."
+            : "Hệ thống AI liên tục giám sát 250 điểm ngập xung yếu và triều cường sông Sài Gòn theo dữ liệu thời tiết thực tế."}
         </p>
         <div className="hero-actions">
           <Button onClick={onViewMap}>
@@ -54,7 +59,9 @@ function FloodStatusHero({
           <StatusPill tone="danger">
             {activeAlertCount} cảnh báo đang phát
           </StatusPill>
-          <StatusPill tone="info">Độ tin cậy dự báo 89%</StatusPill>
+          <StatusPill tone={isRaining ? "watch" : "safe"}>
+            {isRaining ? "Đang có mưa" : "Đường khô ráo"}
+          </StatusPill>
         </div>
       </div>
 
@@ -64,16 +71,18 @@ function FloodStatusHero({
             <CloudRain size={22} />
           </span>
           <div>
-            <small>Lượng mưa 30 phút</small>
+            <small>Lượng mưa hiện tại</small>
             <strong>
               {rainValue} <span>mm</span>
             </strong>
           </div>
-          <StatusPill tone="watch">{riskLabel}</StatusPill>
+          <StatusPill tone={isRaining ? "watch" : "safe"}>{riskLabel}</StatusPill>
         </div>
-        <WaterGauge tone={1} value={rainValue} />
+        <WaterGauge tone={isRaining ? 1 : 0} value={rainValue} />
         <p className="hero-gauge-note">
-          Dự kiến đạt đỉnh 51 mm lúc 19:30 trước khi giảm dần sau 20:00.
+          {isRaining
+            ? "Cập nhật tự động từ trạm đo vệ tinh Open-Meteo & mạng lưới cảm biến đô thị."
+            : "Lượng mưa duy trì 0 mm, không có nguy cơ ngập úng trên địa bàn TP.HCM."}
         </p>
       </div>
     </section>

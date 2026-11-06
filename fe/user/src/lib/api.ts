@@ -18,6 +18,7 @@ import {
   searchPlacesWithGoogle,
 } from "./googleMaps"
 import { fetchFullRealWeather } from "./weatherApi"
+import defaultHotspots from "@/data/hcmc_flood_hotspots.json"
 
 const API_BASE =
   (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "/api"
@@ -563,25 +564,113 @@ export async function searchPlacesApi(
   return finalResults
 }
 
-export async function fetchMapPointsApi(): Promise<MapFloodPoint[]> {
+export async function fetchMapPointsApi(
+  rainMm?: number,
+  mode: "realtime" | "history" = "realtime",
+): Promise<MapFloodPoint[]> {
+  const query = new URLSearchParams()
+  if (rainMm !== undefined) query.set("rainMm", String(rainMm))
+  if (mode) query.set("mode", mode)
+
   try {
-    const res = await fetch(`${API_BASE}/map/points`)
-    if (!res.ok) return []
-    const data = await res.json()
-    const points = Array.isArray(data) ? (data as MapFloodPoint[]) : []
-    // Đồng bộ động các tuyến đường từ PostgreSQL vào bộ nhớ tìm kiếm
-    registerDynamicPlaces(
-      points.map((pt) => ({
-        label: pt.district ? `${pt.label} · ${pt.district}` : pt.label,
-        address: `${pt.label}, ${pt.district || "TP. Hồ Chí Minh"}`,
-        district: pt.district || "TP. Hồ Chí Minh",
-        coords: [pt.lng, pt.lat],
-      })),
-    )
-    return points
+    const res = await fetch(`${API_BASE}/map/points?${query.toString()}`)
+    if (res.ok) {
+      const data = await res.json()
+      if (Array.isArray(data)) {
+        registerDynamicPlaces(
+          data.map((pt) => ({
+            label: pt.district ? `${pt.label} · ${pt.district}` : pt.label,
+            address: `${pt.label}, ${pt.district || "TP. Hồ Chí Minh"}`,
+            district: pt.district || "TP. Hồ Chí Minh",
+            coords: [pt.lng, pt.lat],
+          })),
+        )
+        return data as MapFloodPoint[]
+      }
+    }
   } catch {
+    // Fallback suy luận trực tiếp tại Client
+  }
+
+  // Thuật toán suy luận chẩn đoán thời gian thực (Client-side AI Inference)
+  const allHotspots = defaultHotspots as any[]
+
+  // Luôn nạp 250 tuyến đường vào bộ gợi ý tìm kiếm
+  registerDynamicPlaces(
+    allHotspots.map((pt) => ({
+      label: pt.district ? `${pt.label} · ${pt.district}` : pt.label,
+      address: `${pt.label}, ${pt.district || "TP. Hồ Chí Minh"}`,
+      district: pt.district || "TP. Hồ Chí Minh",
+      coords: [pt.lng, pt.lat],
+    })),
+  )
+
+  // 1. Chế độ xem toàn bộ 250 điểm đen lịch sử 2002-2026
+  if (mode === "history") {
+    return allHotspots.map((h) => ({
+      id: h.id,
+      lat: h.lat,
+      lng: h.lng,
+      label: h.label,
+      district: h.district,
+      type: "flood",
+      severity: h.severity,
+      depth: h.depth || 25,
+      rainfall: h.rainfallThresholdMm || 50,
+    }))
+  }
+
+  // 2. Chế độ chẩn đoán thời gian thực theo lượng mưa thực tế
+  const actualRain = rainMm ?? 0
+  const vnHour = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" })).getHours()
+  const isTidePeak = (vnHour >= 16 && vnHour <= 19) || (vnHour >= 4 && vnHour <= 7)
+
+  // Nếu trời khô ráo (mưa < 5mm) và ngoài giờ triều cường: ĐƯỜNG KHÔ RÁO HOÀN TOÀN!
+  if (actualRain < 5 && !isTidePeak) {
     return []
   }
+
+  const predictedPoints: MapFloodPoint[] = []
+
+  for (const h of allHotspots) {
+    const elevation = h.elevationM || 2.0
+    const terrainFactor = elevation <= 1.5 ? 1.4 : elevation <= 3.0 ? 1.0 : 0.7
+    const effectiveRain = actualRain * terrainFactor
+    const threshold = h.rainfallThresholdMm || 35
+
+    const isRainFlooded = actualRain >= 5 && effectiveRain >= threshold
+    const isTideFlooded = isTidePeak && (
+      h.district?.includes("7") ||
+      h.district?.includes("Nhà Bè") ||
+      h.district?.includes("Bình Thạnh") ||
+      h.district?.includes("Thủ Đức")
+    ) && elevation <= 1.5
+
+    if (!isRainFlooded && !isTideFlooded) continue
+
+    let dynamicDepth = 15
+    if (isRainFlooded) {
+      dynamicDepth = Math.min(h.depth || 40, Math.round((effectiveRain - threshold) * 0.75 + 15))
+    } else if (isTideFlooded) {
+      dynamicDepth = Math.round(15 + (1.6 - Math.min(elevation, 1.5)) * 15)
+    }
+
+    const severity = dynamicDepth >= 35 ? "critical" : dynamicDepth >= 20 ? "high" : "medium"
+
+    predictedPoints.push({
+      id: h.id,
+      lat: h.lat,
+      lng: h.lng,
+      label: h.label,
+      district: h.district,
+      type: "flood",
+      severity,
+      depth: dynamicDepth,
+      rainfall: actualRain,
+    })
+  }
+
+  return predictedPoints
 }
 
 export async function fetchCurrentWeather(): Promise<WeatherSnapshot | null> {
@@ -644,33 +733,109 @@ export async function fetchForecastSlots(): Promise<{
 }> {
   try {
     const res = await fetch(`${API_BASE}/journey/forecasts`)
-    if (!res.ok) throw new Error("Failed to fetch forecasts")
-    const data = (await res.json()) as ForecastSlot[]
-    if (Array.isArray(data)) {
-      return { slots: data, live: true }
+    if (res.ok) {
+      const data = (await res.json()) as ForecastSlot[]
+      if (Array.isArray(data) && data.length > 0) {
+        // Loại bỏ nếu dữ liệu là mock 34mm cũ
+        const hasLegacyMock = data.some(
+          (s) => s.id === "30" && (s.rain === "34 mm" || (s as any).rainMm === 34)
+        )
+        if (!hasLegacyMock) {
+          return { slots: data, live: true }
+        }
+      }
     }
   } catch {
-    // ignore
+    // ignore backend error
   }
-  return { slots: [], live: false }
+
+  // Fallback: Gọi trực tiếp Open-Meteo API thời gian thực trên client
+  try {
+    const real = await fetchFullRealWeather(10.7769, 106.7009, "Hồ Chí Minh")
+    const hourly = real.hourly || []
+    const nowRain = Math.round((hourly[0]?.rainMm ?? 0) * 10) / 10
+    const slot30Rain = Math.round(
+      ((hourly[0]?.rainMm ?? 0) * 0.5 + (hourly[1]?.rainMm ?? 0) * 0.5) * 10
+    ) / 10
+    const slot60Rain = Math.round((hourly[1]?.rainMm ?? 0) * 10) / 10
+    const slot90Rain = Math.round(
+      ((hourly[1]?.rainMm ?? 0) * 0.5 + (hourly[2]?.rainMm ?? 0) * 0.5) * 10
+    ) / 10
+
+    const calcRisk = (rain: number): { risk: string; zone: 0 | 1 | 2 } => {
+      if (rain >= 45) return { risk: "Rất cao", zone: 2 }
+      if (rain >= 25) return { risk: "Cao", zone: 1 }
+      if (rain >= 10) return { risk: "Trung bình", zone: 1 }
+      return { risk: "Thấp", zone: 0 }
+    }
+
+    const rNow = calcRisk(nowRain)
+    const r30 = calcRisk(slot30Rain)
+    const r60 = calcRisk(slot60Rain)
+    const r90 = calcRisk(slot90Rain)
+
+    const slots: ForecastSlot[] = [
+      {
+        id: "now",
+        label: "Hiện tại",
+        rain: `${nowRain} mm`,
+        risk: rNow.risk,
+        zone: rNow.zone,
+      },
+      {
+        id: "30",
+        label: "+30 phút",
+        rain: `${slot30Rain} mm`,
+        risk: r30.risk,
+        zone: r30.zone,
+      },
+      {
+        id: "60",
+        label: "+60 phút",
+        rain: `${slot60Rain} mm`,
+        risk: r60.risk,
+        zone: r60.zone,
+      },
+      {
+        id: "90",
+        label: "+90 phút",
+        rain: `${slot90Rain} mm`,
+        risk: slot90Rain < slot60Rain && slot60Rain >= 10 ? "Giảm dần" : r90.risk,
+        zone: r90.zone,
+      },
+    ]
+
+    return { slots, live: true }
+  } catch {
+    return {
+      slots: [
+        { id: "now", label: "Hiện tại", rain: "0 mm", risk: "Thấp", zone: 0 },
+        { id: "30", label: "+30 phút", rain: "0 mm", risk: "Thấp", zone: 0 },
+        { id: "60", label: "+60 phút", rain: "0 mm", risk: "Thấp", zone: 0 },
+        { id: "90", label: "+90 phút", rain: "0 mm", risk: "Thấp", zone: 0 },
+      ],
+      live: false,
+    }
+  }
 }
 
 export async function fetchJourneyRoutes(
   originCoords: [number, number],
   destCoords: [number, number],
+  floodPoints: MapFloodPoint[] = [],
 ): Promise<{
   routes: Record<RouteId, RouteItem>
   navigationSteps: NavigationStep[]
   live: boolean
 }> {
-  // 1. Ưu tiên cao nhất: Dùng Google Maps Directions Service (hỗ trợ xe máy qua từng ngõ hẻm)
+  // 1. Ưu tiên cao nhất: Dùng Google Maps Directions Service với thuật toán lọc né ngập
   try {
-    const googleRes = await computeRouteWithGoogle(originCoords, destCoords)
+    const googleRes = await computeRouteWithGoogle(originCoords, destCoords, floodPoints)
     if (googleRes && Array.isArray(googleRes.safeRoute?.coordinates) && googleRes.safeRoute.coordinates.length > 1) {
       return {
         routes: {
           safe: googleRes.safeRoute,
-          balanced: {
+          balanced: googleRes.balancedRoute ?? {
             ...googleRes.safeRoute,
             id: "balanced",
             name: "Tuyến dự phòng",

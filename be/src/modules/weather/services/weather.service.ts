@@ -220,17 +220,17 @@ export class WeatherService {
         lat: targetLat,
         lng: targetLng,
         elevationM: 2.2,
-        temperatureC: 27.5,
-        humidityPercent: 88,
-        windSpeedKmh: 18.5,
-        currentRainMm: 34,
-        weatherCondition: 'Mưa lớn diện rộng',
-        floodRiskLevel: 'Cao',
+        temperatureC: 28.0,
+        humidityPercent: 78,
+        windSpeedKmh: 12.0,
+        currentRainMm: 0,
+        weatherCondition: 'Trời quang mây',
+        floodRiskLevel: 'Thấp',
         hourlyForecast: [
-          { time: 'Hiện tại', rainMm: 8, precipitationProbability: 70, temperatureC: 28.2 },
-          { time: '+30 phút', rainMm: 34, precipitationProbability: 90, temperatureC: 27.4 },
-          { time: '+60 phút', rainMm: 51, precipitationProbability: 95, temperatureC: 26.8 },
-          { time: '+90 phút', rainMm: 23, precipitationProbability: 75, temperatureC: 27.1 },
+          { time: 'Hiện tại', rainMm: 0, precipitationProbability: 10, temperatureC: 28.0 },
+          { time: '+30 phút', rainMm: 0, precipitationProbability: 10, temperatureC: 28.0 },
+          { time: '+60 phút', rainMm: 0, precipitationProbability: 10, temperatureC: 27.5 },
+          { time: '+90 phút', rainMm: 0, precipitationProbability: 10, temperatureC: 27.0 },
         ],
       });
       return await this.weatherRepo.save(fallbackSnapshot);
@@ -273,19 +273,15 @@ export class WeatherService {
     const snapshot = await this.getCurrentWeather();
     const hourly = snapshot.hourlyForecast ?? [];
 
-    const nowRain = Math.max(8, Math.round(snapshot.currentRainMm || 8));
-    const slot30Rain = Math.max(
-      24,
-      Math.round(hourly[1]?.rainMm ? hourly[1].rainMm * 4 + 20 : 34),
-    );
-    const slot60Rain = Math.max(
-      38,
-      Math.round(hourly[2]?.rainMm ? hourly[2].rainMm * 5 + 30 : 51),
-    );
-    const slot90Rain = Math.max(
-      15,
-      Math.round(hourly[3]?.rainMm ? hourly[3].rainMm * 3 + 15 : 23),
-    );
+    const nowRain = Math.round((snapshot.currentRainMm || 0) * 10) / 10;
+    const slot30Rain = Math.round((hourly[1]?.rainMm ?? (snapshot.currentRainMm || 0)) * 10) / 10;
+    const slot60Rain = Math.round((hourly[2]?.rainMm ?? 0) * 10) / 10;
+    const slot90Rain = Math.round((hourly[3]?.rainMm ?? 0) * 10) / 10;
+
+    const riskNow = this.calculateFloodRisk(nowRain, snapshot.elevationM);
+    const risk30 = this.calculateFloodRisk(slot30Rain, snapshot.elevationM);
+    const risk60 = this.calculateFloodRisk(slot60Rain, snapshot.elevationM);
+    const risk90 = this.calculateFloodRisk(slot90Rain, snapshot.elevationM);
 
     const slots: ForecastSlotEntity[] = [
       {
@@ -293,8 +289,8 @@ export class WeatherService {
         label: 'Hiện tại',
         rain: `${nowRain} mm`,
         rainMm: nowRain,
-        risk: this.calculateFloodRisk(nowRain, snapshot.elevationM).level,
-        zone: this.calculateFloodRisk(nowRain, snapshot.elevationM).zone,
+        risk: riskNow.level,
+        zone: riskNow.zone,
         sortOrder: 0,
       },
       {
@@ -302,8 +298,8 @@ export class WeatherService {
         label: '+30 phút',
         rain: `${slot30Rain} mm`,
         rainMm: slot30Rain,
-        risk: 'Cao',
-        zone: 1,
+        risk: risk30.level,
+        zone: risk30.zone,
         sortOrder: 1,
       },
       {
@@ -311,8 +307,8 @@ export class WeatherService {
         label: '+60 phút',
         rain: `${slot60Rain} mm`,
         rainMm: slot60Rain,
-        risk: 'Rất cao',
-        zone: 2,
+        risk: risk60.level,
+        zone: risk60.zone,
         sortOrder: 2,
       },
       {
@@ -320,8 +316,8 @@ export class WeatherService {
         label: '+90 phút',
         rain: `${slot90Rain} mm`,
         rainMm: slot90Rain,
-        risk: 'Giảm dần',
-        zone: 1,
+        risk: slot90Rain < slot60Rain && slot60Rain >= 10 ? 'Giảm dần' : risk90.level,
+        zone: risk90.zone,
         sortOrder: 3,
       },
     ];
@@ -332,7 +328,7 @@ export class WeatherService {
       where: { type: 'sensor' },
     });
     for (const point of sensorPoints) {
-      point.rainfall = Math.max(point.rainfall, slot30Rain + 18);
+      point.rainfall = slot30Rain;
       await this.mapPointRepo.save(point);
     }
 

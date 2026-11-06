@@ -4,12 +4,14 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ForecastSlotEntity } from './models/forecast-slot.entity';
 import { RouteOptionEntity } from './models/route-option.entity';
 import { MapPointEntity } from '../map/models/map-point.entity';
+import { WeatherModule } from '../weather/weather.module';
 import { JourneyService } from './services/journey.service';
 import { JourneyController } from './controllers/journey.controller';
 
 @Module({
   imports: [
     HttpModule,
+    WeatherModule,
     TypeOrmModule.forFeature([
       ForecastSlotEntity,
       RouteOptionEntity,
@@ -21,4 +23,3 @@ import { JourneyController } from './controllers/journey.controller';
   exports: [JourneyService],
 })
 export class JourneyModule {}
-

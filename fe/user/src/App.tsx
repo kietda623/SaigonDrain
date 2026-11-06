@@ -40,13 +40,14 @@ import type {
   WeatherSnapshot,
 } from "@/types"
 
-const EMPTY_FORECAST: ForecastSlot = {
-  id: "now",
-  label: "Hiện tại",
-  rain: "0 mm",
-  risk: "Thấp",
-  zone: 0,
-}
+const DEFAULT_FORECAST_SLOTS: ForecastSlot[] = [
+  { id: "now", label: "Hiện tại", rain: "0 mm", risk: "Thấp", zone: 0 },
+  { id: "30", label: "+30 phút", rain: "0 mm", risk: "Thấp", zone: 0 },
+  { id: "60", label: "+60 phút", rain: "0 mm", risk: "Thấp", zone: 0 },
+  { id: "90", label: "+90 phút", rain: "0 mm", risk: "Thấp", zone: 0 },
+]
+
+const EMPTY_FORECAST: ForecastSlot = DEFAULT_FORECAST_SLOTS[0]
 
 function calculateEta(minutesStr?: string): string {
   const match = (minutesStr || "").match(/\d+/)
@@ -59,7 +60,8 @@ function calculateEta(minutesStr?: string): string {
 }
 
 function App() {
-  const [forecastIndex, setForecastIndex] = useState(1)
+  const [forecastIndex, setForecastIndex] = useState(0)
+  const [mapMode, setMapMode] = useState<"realtime" | "history">("realtime")
   const [selectedRoute, setSelectedRoute] = useState<RouteId>("safe")
   const [reportOpen, setReportOpen] = useState(false)
   const [authOpen, setAuthOpen] = useState(false)
@@ -89,7 +91,7 @@ function App() {
   const [destination, setDestination] = useState<RouteEndpoint | null>(null)
   const [floodPoints, setFloodPoints] = useState<MapFloodPoint[]>([])
 
-  const [forecasts, setForecasts] = useState<ForecastSlot[]>([])
+  const [forecasts, setForecasts] = useState<ForecastSlot[]>(DEFAULT_FORECAST_SLOTS)
   const [routesData, setRoutesData] = useState<Record<RouteId, RouteItem>>({
     safe: { ...EMPTY_ROUTES.safe },
     balanced: { ...EMPTY_ROUTES.balanced },
@@ -97,6 +99,21 @@ function App() {
   const [navigationSteps, setNavigationSteps] = useState<NavigationStep[]>([])
   const [weather, setWeather] = useState<WeatherSnapshot | null>(null)
   const [isLiveBackend, setIsLiveBackend] = useState(false)
+  const [rerouteNotice, setRerouteNotice] = useState<string | null>(null)
+
+  // Tự động chẩn đoán và cập nhật điểm ngập theo thời tiết thực và mốc dự báo được chọn
+  useEffect(() => {
+    let active = true
+    const currentSlot = forecasts[forecastIndex] ?? forecasts[0]
+    const slotRain = currentSlot ? Number.parseInt(currentSlot.rain, 10) || 0 : (weather?.currentRainMm ?? 0)
+
+    async function updatePoints() {
+      const pts = await fetchMapPointsApi(slotRain, mapMode)
+      if (active) setFloodPoints(pts)
+    }
+    updatePoints()
+    return () => { active = false }
+  }, [forecastIndex, mapMode, forecasts, weather])
 
   useEffect(() => {
     let active = true
@@ -119,6 +136,7 @@ function App() {
         const routesRes = await fetchJourneyRoutes(
           origin.coords,
           destination.coords,
+          pointsRes.length > 0 ? pointsRes : floodPoints,
         )
         if (!active) return
         setRoutesData(routesRes.routes)
@@ -148,6 +166,7 @@ function App() {
           const routesRes = await fetchJourneyRoutes(
             origin.coords,
             destination.coords,
+            pointsRes.length > 0 ? pointsRes : floodPoints,
           )
           if (!active) return
           setRoutesData(routesRes.routes)
@@ -224,6 +243,41 @@ function App() {
     })
     setPanelExpanded(false)
     setActiveTab("map")
+  }
+
+
+  async function handleAutoReroute(currentCoords: [number, number]) {
+    if (!destination) return
+    setRerouteNotice("Đang tính toán lại lộ trình tránh ngập...")
+
+    const updatedOrigin: RouteEndpoint = {
+      label: "Vị trí hiện tại",
+      address: "Đoạn đường vừa rẽ",
+      district: origin?.district || "TP.HCM",
+      coords: currentCoords,
+    }
+    setOrigin(updatedOrigin)
+
+    try {
+      const routesRes = await fetchJourneyRoutes(
+        currentCoords,
+        destination.coords,
+        floodPoints,
+      )
+      if (routesRes && routesRes.routes?.safe?.coordinates && routesRes.routes.safe.coordinates.length > 1) {
+        setRoutesData(routesRes.routes)
+        setNavigationSteps(routesRes.navigationSteps)
+        setNavStepIndex(0)
+        setLiveDistanceToTurn(null)
+        setRerouteNotice("Đã đổi lộ trình mới tránh ngập!")
+        setTimeout(() => setRerouteNotice(null), 3000)
+      } else {
+        setRerouteNotice(null)
+      }
+    } catch (err) {
+      console.warn("Auto-reroute error:", err)
+      setRerouteNotice(null)
+    }
   }
 
   function handleStopNavigation() {
@@ -305,7 +359,10 @@ function App() {
         <MapCanvas
           destination={destination}
           floodPoints={floodPoints}
+          mapMode={mapMode}
+          onToggleMapMode={() => setMapMode((prev) => (prev === "realtime" ? "history" : "realtime"))}
           isNavigating={isNavigating}
+          onReroute={handleAutoReroute}
           navStepIndex={navStepIndex}
           navigationSteps={navigationSteps}
           onProgressUpdate={(info) => {
@@ -392,6 +449,12 @@ function App() {
 
         {isNavigating && (
           <div className="google-nav-hud-top">
+            {rerouteNotice && (
+              <div className="nav-hud-reroute-toast">
+                <div className="reroute-pulse-ring" />
+                <span className="reroute-toast-text">{rerouteNotice}</span>
+              </div>
+            )}
             <div className="nav-hud-maneuver">
               <div className={`nav-hud-turn-icon is-${currentStep?.icon || "straight"}`}>
                 <Icon name={currentStep?.icon || "straight"} size={32} />

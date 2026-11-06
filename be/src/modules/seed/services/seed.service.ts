@@ -1,3 +1,5 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -34,11 +36,15 @@ export class SeedService implements OnApplicationBootstrap {
   ) {}
 
   async onApplicationBootstrap() {
-    const reportCount = await this.reportRepo.count();
-    if (reportCount === 0) {
-      this.logger.log('Cơ sở dữ liệu trống — đang khởi tạo dữ liệu mẫu SaigonDrain AI...');
+    const p1 = await this.mapPointRepo.findOne({ where: { id: 'p1' } });
+    const count = await this.mapPointRepo.count();
+    const slot30 = await this.forecastRepo.findOne({ where: { id: '30' } });
+    if (p1 || count < 50 || slot30?.rainMm === 34) {
+      this.logger.log('Phát hiện dữ liệu mẫu cũ hoặc mốc dự báo cứng 34mm — đang nạp lại dữ liệu chuẩn...');
+      await this.mapPointRepo.clear();
+      await this.forecastRepo.clear();
       await this.seedAll();
-      this.logger.log('Khởi tạo dữ liệu mẫu SaigonDrain AI hoàn tất!');
+      this.logger.log('Khởi tạo 250 điểm thực nghiệm IRD và mốc dự báo thời gian thực hoàn tất!');
     }
   }
 
@@ -181,162 +187,85 @@ export class SeedService implements OnApplicationBootstrap {
     ];
     await this.alertRepo.save(alerts);
 
-    const mapPoints: Partial<MapPointEntity>[] = [
-      {
-        id: 'p1',
-        x: 60,
-        y: 42,
-        lat: 10.7934,
-        lng: 106.7185,
-        elevationM: 1.6,
-        type: 'flood',
-        severity: 'critical',
-        label: 'Nguyễn Hữu Cảnh',
-        district: 'Bình Thạnh',
-        rainfall: 82,
-        depth: 45,
-        historyCount: 21,
-      },
-      {
-        id: 'p2',
-        x: 73,
-        y: 35,
-        lat: 10.8038,
-        lng: 106.7329,
-        elevationM: 1.9,
-        type: 'flood',
-        severity: 'high',
-        label: 'Quốc Hương',
-        district: 'TP. Thủ Đức',
-        rainfall: 68,
-        depth: 30,
-        historyCount: 17,
-      },
-      {
-        id: 'p3',
-        x: 47,
-        y: 24,
-        lat: 10.8381,
-        lng: 106.6304,
-        elevationM: 4.2,
-        type: 'pending',
-        severity: 'critical',
-        label: 'Nguyễn Văn Quá',
-        district: 'Quận 12',
-        rainfall: 74,
-        depth: 35,
-        historyCount: 12,
-        linkedReportId: 'RP-2418',
-      },
-      {
-        id: 'p4',
-        x: 35,
-        y: 29,
-        lat: 10.8336,
-        lng: 106.6341,
-        elevationM: 5.1,
-        type: 'pending',
-        severity: 'high',
-        label: 'Phan Huy Ích',
-        district: 'Gò Vấp',
-        rainfall: 61,
-        depth: 18,
-        historyCount: 8,
-        linkedReportId: 'RP-2417',
-      },
-      {
-        id: 'p5',
-        x: 44,
-        y: 75,
-        lat: 10.7079,
-        lng: 106.6366,
-        elevationM: 2.1,
-        type: 'pending',
-        severity: 'high',
-        label: 'Nguyễn Văn Linh',
-        district: 'Bình Chánh',
-        rainfall: 55,
-        depth: 22,
-        historyCount: 15,
-        linkedReportId: 'RP-2415',
-      },
-      {
-        id: 'p6',
-        x: 63,
-        y: 78,
-        lat: 10.6842,
-        lng: 106.7021,
-        elevationM: 1.4,
-        type: 'pending',
-        severity: 'medium',
-        label: 'Lê Văn Lương',
-        district: 'Nhà Bè',
-        rainfall: 49,
-        depth: 28,
-        historyCount: 9,
-        linkedReportId: 'RP-2412',
-      },
-      {
-        id: 'p7',
-        x: 72,
-        y: 64,
-        lat: 10.734,
-        lng: 106.7315,
-        elevationM: 1.5,
-        type: 'flood',
-        severity: 'high',
-        label: 'Huỳnh Tấn Phát',
-        district: 'Quận 7',
-        rainfall: 57,
-        depth: 27,
-        historyCount: 19,
-      },
-      {
-        id: 'p8',
-        x: 82,
-        y: 51,
-        lat: 10.812,
-        lng: 106.784,
-        elevationM: 2.3,
-        type: 'risk',
-        severity: 'critical',
-        label: 'Võ Chí Công',
-        district: 'TP. Thủ Đức',
-        rainfall: 78,
-        depth: 0,
-        historyCount: 11,
-      },
-      {
-        id: 'p9',
-        x: 29,
-        y: 54,
-        lat: 10.7425,
-        lng: 106.618,
-        elevationM: 2.0,
-        type: 'risk',
-        severity: 'medium',
-        label: 'Kinh Dương Vương',
-        district: 'Bình Tân',
-        rainfall: 46,
-        depth: 0,
-        historyCount: 14,
-      },
-      {
-        id: 'p10',
-        x: 53,
-        y: 59,
-        lat: 10.7578,
-        lng: 106.7012,
-        elevationM: 2.2,
-        type: 'sensor',
-        severity: 'medium',
-        label: 'Cảm biến Quận 4',
-        district: 'Quận 4',
-        rainfall: 64,
-        depth: 0,
-        historyCount: 4,
-      },
-    ];
+    let mapPoints: Partial<MapPointEntity>[] = [];
+    try {
+      const dataFilePath = path.resolve(__dirname, '../data/hcmc_flood_hotspots.json');
+      if (fs.existsSync(dataFilePath)) {
+        const raw = fs.readFileSync(dataFilePath, 'utf-8');
+        const hotspots = JSON.parse(raw);
+        mapPoints = hotspots.map((h: any) => ({
+          id: h.id,
+          x: h.x || 50,
+          y: h.y || 50,
+          lat: h.lat,
+          lng: h.lng,
+          elevationM: h.elevationM || 2.0,
+          type: (h.type || 'flood') as any,
+          severity: h.severity as any,
+          label: h.label,
+          district: h.district,
+          rainfall: h.rainfallThresholdMm || 50,
+          depth: h.depth || 25,
+          historyCount: h.historyCount || 5,
+        }));
+        this.logger.log(`Đã nạp thành công ${mapPoints.length} điểm ngập lịch sử khoa học IRD (2002-2026) vào PostgreSQL!`);
+      }
+    } catch (e) {
+      this.logger.warn(`Lỗi đọc file hcmc_flood_hotspots.json: ${e}`);
+    }
+
+    if (mapPoints.length === 0) {
+      mapPoints = [
+        {
+          id: 'p1',
+          x: 60,
+          y: 42,
+          lat: 10.7934,
+          lng: 106.7185,
+          elevationM: 1.6,
+          type: 'flood',
+          severity: 'critical',
+          label: 'Nguyễn Hữu Cảnh',
+          district: 'Bình Thạnh',
+          rainfall: 82,
+          depth: 45,
+          historyCount: 21,
+        },
+        {
+          id: 'p2',
+          x: 73,
+          y: 35,
+          lat: 10.8038,
+          lng: 106.7329,
+          elevationM: 1.9,
+          type: 'flood',
+          severity: 'high',
+          label: 'Quốc Hương',
+          district: 'TP. Thủ Đức',
+          rainfall: 68,
+          depth: 30,
+          historyCount: 17,
+        },
+      ];
+    }
+
+    // Luôn bổ sung cảm biến đô thị và trạm đo
+    mapPoints.push({
+      id: 'sensor_q4',
+      x: 53,
+      y: 59,
+      lat: 10.7578,
+      lng: 106.7012,
+      elevationM: 2.2,
+      type: 'sensor',
+      severity: 'medium',
+      label: 'Trạm cảm biến Quận 4',
+      district: 'Quận 4',
+      rainfall: 64,
+      depth: 0,
+      historyCount: 4,
+    });
+
     await this.mapPointRepo.save(mapPoints);
 
     const users: Partial<CommunityUserEntity>[] = [
@@ -449,8 +378,8 @@ export class SeedService implements OnApplicationBootstrap {
       {
         id: 'now',
         label: 'Hiện tại',
-        rain: '8 mm',
-        rainMm: 8,
+        rain: '0 mm',
+        rainMm: 0,
         risk: 'Thấp',
         zone: 0,
         sortOrder: 0,
@@ -458,28 +387,28 @@ export class SeedService implements OnApplicationBootstrap {
       {
         id: '30',
         label: '+30 phút',
-        rain: '34 mm',
-        rainMm: 34,
-        risk: 'Cao',
-        zone: 1,
+        rain: '0 mm',
+        rainMm: 0,
+        risk: 'Thấp',
+        zone: 0,
         sortOrder: 1,
       },
       {
         id: '60',
         label: '+60 phút',
-        rain: '51 mm',
-        rainMm: 51,
-        risk: 'Rất cao',
-        zone: 2,
+        rain: '0 mm',
+        rainMm: 0,
+        risk: 'Thấp',
+        zone: 0,
         sortOrder: 2,
       },
       {
         id: '90',
         label: '+90 phút',
-        rain: '23 mm',
-        rainMm: 23,
-        risk: 'Giảm dần',
-        zone: 1,
+        rain: '0 mm',
+        rainMm: 0,
+        risk: 'Thấp',
+        zone: 0,
         sortOrder: 3,
       },
     ];

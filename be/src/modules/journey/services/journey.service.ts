@@ -1,4 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
+import { WeatherService } from '../../weather/services/weather.service';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -28,9 +29,20 @@ export class JourneyService {
     private readonly routeRepo: Repository<RouteOptionEntity>,
     @InjectRepository(MapPointEntity)
     private readonly mapPointRepo: Repository<MapPointEntity>,
+    @Optional() private readonly weatherService?: WeatherService,
   ) {}
 
   async getForecasts(): Promise<ForecastSlotEntity[]> {
+    if (this.weatherService) {
+      try {
+        const syncRes = await this.weatherService.syncForecastsWithWeather();
+        if (syncRes?.slots && syncRes.slots.length > 0) {
+          return syncRes.slots;
+        }
+      } catch (err) {
+        this.logger.warn(`Không thể đồng bộ dự báo thời tiết: ${(err as Error).message}`);
+      }
+    }
     return this.forecastRepo.find({ order: { sortOrder: 'ASC' } });
   }
 
