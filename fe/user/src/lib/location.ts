@@ -8,7 +8,7 @@ export type UserGeoLocation = {
 }
 
 export async function getUserLocation(): Promise<UserGeoLocation> {
-  // 0. Nếu chạy trên App Native Android / iOS, ưu tiên gọi thẳng cảm biến GPS phần cứng qua Capacitor
+  // 0. Nếu chạy trên App Native Android, ưu tiên gọi thẳng cảm biến GPS phần cứng qua Capacitor
   if (typeof window !== "undefined" && Capacitor.isNativePlatform()) {
     try {
       let perm = await Geolocation.checkPermissions()
