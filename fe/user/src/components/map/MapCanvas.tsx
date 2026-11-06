@@ -750,8 +750,10 @@ function MapCanvas({
           if (now - lastRerouteTimeRef.current > 4000) {
             lastRerouteTimeRef.current = now
             offRouteCounterRef.current = 0
-            console.log(`[Auto-Reroute] Người dùng đã rẽ sang đường khác (cách lộ trình cũ ${Math.round(minDistanceToRoad)}m). Đang tính lại tuyến né ngập từ [${rawLng}, ${rawLat}]...`)
-            onRerouteRef.current?.([rawLng, rawLat])
+            if (isUsingRealGps) {
+              console.log(`[Auto-Reroute] Người dùng đã rẽ sang đường khác (cách lộ trình cũ ${Math.round(minDistanceToRoad)}m). Đang tính lại tuyến né ngập từ [${rawLng}, ${rawLat}]...`)
+              onRerouteRef.current?.([rawLng, rawLat])
+            }
           }
         }
       } else {
@@ -763,45 +765,50 @@ function MapCanvas({
       updatePositionOnRoute(finalPoint, bestDistAlongRoute, heading, speed)
     }
 
-    // KHỞI ĐỘNG LIVE GPS TRACKING THẬT (Capacitor Native hoặc Trình duyệt)
-    if (typeof window !== "undefined" && Capacitor.isNativePlatform()) {
-      if (capWatchIdRef.current === null) {
-        Geolocation.watchPosition(
-          { enableHighAccuracy: true },
-          (pos) => {
-            if (pos && pos.coords) {
+    // Chỉ kích hoạt theo dõi cảm biến GPS phần cứng khi người dùng CHỦ ĐỘNG chọn "Vị trí của bạn"
+    // Nếu người dùng chọn một địa điểm bất kỳ khác (để xem thử / mô phỏng lộ trình), giữ nguyên 100% điểm đó
+    const isUsingRealGps = Boolean(origin?.isCurrentLocation)
+
+    if (isUsingRealGps) {
+      if (typeof window !== "undefined" && Capacitor.isNativePlatform()) {
+        if (capWatchIdRef.current === null) {
+          Geolocation.watchPosition(
+            { enableHighAccuracy: true },
+            (pos) => {
+              if (pos && pos.coords) {
+                handleRawGpsUpdate(
+                  pos.coords.longitude,
+                  pos.coords.latitude,
+                  pos.coords.heading,
+                  pos.coords.speed,
+                )
+              }
+            }
+          ).then((id) => {
+            capWatchIdRef.current = id
+          }).catch((err) => {
+            console.warn("Capacitor watchPosition error:", err)
+          })
+        }
+      } else if (watchIdRef.current === null && typeof navigator !== "undefined" && navigator.geolocation) {
+        try {
+          watchIdRef.current = navigator.geolocation.watchPosition(
+            (pos) => {
               handleRawGpsUpdate(
                 pos.coords.longitude,
                 pos.coords.latitude,
                 pos.coords.heading,
                 pos.coords.speed,
               )
-            }
-          }
-        ).then((id) => {
-          capWatchIdRef.current = id
-        }).catch((err) => {
-          console.warn("Capacitor watchPosition error:", err)
-        })
-      }
-    } else if (watchIdRef.current === null && typeof navigator !== "undefined" && navigator.geolocation) {
-      try {
-        watchIdRef.current = navigator.geolocation.watchPosition(
-          (pos) => {
-            handleRawGpsUpdate(
-              pos.coords.longitude,
-              pos.coords.latitude,
-              pos.coords.heading,
-              pos.coords.speed,
-            )
-          },
-          (err) => {
-            console.warn("Live GPS watchPosition warning:", err)
-          },
-          { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
-        )
-      } catch (err) {
-        console.warn("Could not start watchPosition:", err)
+            },
+            (err) => {
+              console.warn("Live GPS watchPosition warning:", err)
+            },
+            { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
+          )
+        } catch (err) {
+          console.warn("Could not start watchPosition:", err)
+        }
       }
     }
 

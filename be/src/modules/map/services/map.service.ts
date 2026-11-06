@@ -128,7 +128,9 @@ export class MapService {
       if (isRainFlooded) {
         dynamicDepth = Math.min(point.depth || 40, Math.round((effectiveRain - threshold) * 0.75 + 15));
       } else if (isTideFlooded) {
-        dynamicDepth = Math.round(15 + (1.6 - Math.min(elevation, 1.5)) * 15);
+        const histDepth = point.depth && point.depth >= 20 ? point.depth : 35;
+        const tideLevel = (vnHour === 17 || vnHour === 5) ? 1.70 : (vnHour === 18 || vnHour === 6) ? 1.62 : 1.55;
+        dynamicDepth = Math.max(16, Math.min(histDepth, Math.round((tideLevel - elevation) * 75 + histDepth * 0.3)));
       }
 
       const severity: PointSeverity = dynamicDepth >= 35 ? 'critical' : dynamicDepth >= 20 ? 'high' : 'medium';

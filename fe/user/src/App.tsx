@@ -28,6 +28,7 @@ import {
 } from "@/lib/api"
 import type {
   AppTab,
+  VehicleMode,
   AreaAlertItem,
   CommunityUserProfile,
   ForecastSlot,
@@ -63,6 +64,7 @@ function App() {
   const [forecastIndex, setForecastIndex] = useState(0)
   const [mapMode, setMapMode] = useState<"realtime" | "history">("realtime")
   const [selectedRoute, setSelectedRoute] = useState<RouteId>("safe")
+  const [vehicleMode, setVehicleMode] = useState<VehicleMode>("motorcycle")
   const [reportOpen, setReportOpen] = useState(false)
   const [authOpen, setAuthOpen] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
@@ -137,6 +139,7 @@ function App() {
           origin.coords,
           destination.coords,
           pointsRes.length > 0 ? pointsRes : floodPoints,
+          vehicleMode,
         )
         if (!active) return
         setRoutesData(routesRes.routes)
@@ -167,6 +170,7 @@ function App() {
             origin.coords,
             destination.coords,
             pointsRes.length > 0 ? pointsRes : floodPoints,
+            vehicleMode,
           )
           if (!active) return
           setRoutesData(routesRes.routes)
@@ -184,7 +188,7 @@ function App() {
       active = false
       unsubscribe()
     }
-  }, [origin, destination])
+  }, [origin, destination, vehicleMode])
 
   async function handleSyncWeather() {
     const [weatherSnap, syncedSlots] = await Promise.all([
@@ -255,6 +259,7 @@ function App() {
       address: "Đoạn đường vừa rẽ",
       district: origin?.district || "TP.HCM",
       coords: currentCoords,
+      isCurrentLocation: true,
     }
     setOrigin(updatedOrigin)
 
@@ -263,6 +268,7 @@ function App() {
         currentCoords,
         destination.coords,
         floodPoints,
+        vehicleMode,
       )
       if (routesRes && routesRes.routes?.safe?.coordinates && routesRes.routes.safe.coordinates.length > 1) {
         setRoutesData(routesRes.routes)
@@ -331,6 +337,8 @@ function App() {
           onSelectOrigin={setOrigin}
           onSwap={handleSwapEndpoints}
           origin={origin}
+          vehicleMode={vehicleMode}
+          onSelectVehicleMode={setVehicleMode}
         />
         <JourneyPanel
           canSaveRoute={Boolean(origin && destination)}
@@ -351,6 +359,8 @@ function App() {
           setForecastIndex={setForecastIndex}
           setSelectedRoute={setSelectedRoute}
           weather={weather}
+          vehicleMode={vehicleMode}
+          onSelectVehicleMode={setVehicleMode}
         />
             </div>
           )}
@@ -389,6 +399,8 @@ function App() {
               onSelectOrigin={setOrigin}
               onSwap={handleSwapEndpoints}
               origin={origin}
+              vehicleMode={vehicleMode}
+              onSelectVehicleMode={setVehicleMode}
             />
           </div>
 
@@ -646,6 +658,8 @@ function App() {
             setForecastIndex={setForecastIndex}
             setSelectedRoute={setSelectedRoute}
             weather={weather}
+            vehicleMode={vehicleMode}
+            onSelectVehicleMode={setVehicleMode}
           />
         </div>
       )}

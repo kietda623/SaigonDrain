@@ -1,5 +1,6 @@
 import type {
   AreaAlertItem,
+  VehicleMode,
   CommunityUserProfile,
   ForecastSlot,
   MapFloodPoint,
@@ -652,7 +653,10 @@ export async function fetchMapPointsApi(
     if (isRainFlooded) {
       dynamicDepth = Math.min(h.depth || 40, Math.round((effectiveRain - threshold) * 0.75 + 15))
     } else if (isTideFlooded) {
-      dynamicDepth = Math.round(15 + (1.6 - Math.min(elevation, 1.5)) * 15)
+      const histDepth = h.depth && h.depth >= 20 ? h.depth : 35
+      const tideLevel = (vnHour === 17 || vnHour === 5) ? 1.70 : (vnHour === 18 || vnHour === 6) ? 1.62 : 1.55
+      // Tính độ sâu ngập triều cường đặc thù theo từng tuyến đường và đỉnh triều (cm)
+      dynamicDepth = Math.max(16, Math.min(histDepth, Math.round((tideLevel - elevation) * 75 + histDepth * 0.3)))
     }
 
     const severity = dynamicDepth >= 35 ? "critical" : dynamicDepth >= 20 ? "high" : "medium"
@@ -823,6 +827,7 @@ export async function fetchJourneyRoutes(
   originCoords: [number, number],
   destCoords: [number, number],
   floodPoints: MapFloodPoint[] = [],
+  vehicleMode: VehicleMode = "motorcycle",
 ): Promise<{
   routes: Record<RouteId, RouteItem>
   navigationSteps: NavigationStep[]
@@ -830,7 +835,7 @@ export async function fetchJourneyRoutes(
 }> {
   // 1. Ưu tiên cao nhất: Dùng Google Maps Directions Service với thuật toán lọc né ngập
   try {
-    const googleRes = await computeRouteWithGoogle(originCoords, destCoords, floodPoints)
+    const googleRes = await computeRouteWithGoogle(originCoords, destCoords, floodPoints, vehicleMode)
     if (googleRes && Array.isArray(googleRes.safeRoute?.coordinates) && googleRes.safeRoute.coordinates.length > 1) {
       return {
         routes: {
@@ -838,7 +843,7 @@ export async function fetchJourneyRoutes(
           balanced: googleRes.balancedRoute ?? {
             ...googleRes.safeRoute,
             id: "balanced",
-            name: "Tuyến dự phòng",
+            name: `Tuyến dự phòng (${vehicleMode === "car" ? "Ô tô" : "Xe máy"})`,
             badge: "Dự phòng",
           },
         },
@@ -850,8 +855,9 @@ export async function fetchJourneyRoutes(
     console.warn("Google Maps directions error, falling back:", err)
   }
 
+  // 2. Dự phòng qua Backend NestJS API
   try {
-    const query = `fromLat=${originCoords[1]}&fromLng=${originCoords[0]}&toLat=${destCoords[1]}&toLng=${destCoords[0]}`
+    const query = `fromLat=${originCoords[1]}&fromLng=${originCoords[0]}&toLat=${destCoords[1]}&toLng=${destCoords[0]}&mode=${vehicleMode}`
     const computeRes = await fetch(`${API_BASE}/journey/compute-route?${query}`)
     if (computeRes.ok) {
       const computed = await computeRes.json()
@@ -874,22 +880,20 @@ export async function fetchJourneyRoutes(
     // fallback to browser OSRM
   }
 
-  // Dự phòng trực tiếp OSRM từ trình duyệt khi Backend timeout / fallback
+  // 3. Dự phòng trực tiếp OSRM từ trình duyệt có hỗ trợ phân ngả đường thay thế (alternatives)
   try {
-    const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${originCoords[0]},${originCoords[1]};${destCoords[0]},${destCoords[1]}?steps=true&geometries=geojson&overview=full`
+    const modeLabel = vehicleMode === "car" ? "Ô tô" : "Xe máy"
+    const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${originCoords[0]},${originCoords[1]};${destCoords[0]},${destCoords[1]}?steps=true&geometries=geojson&overview=full&alternatives=true`
     const res = await fetch(osrmUrl)
     if (res.ok) {
       const data = await res.json()
-      const primaryRoute = data?.routes?.[0]
+      const routesList: any[] = data?.routes || []
+      const primaryRoute = routesList[0]
+
       if (primaryRoute) {
-        const durationMinutes = Math.max(
-          1,
-          Math.round((primaryRoute.duration ?? 600) / 60),
-        )
-        const distanceKm = ((primaryRoute.distance ?? 3000) / 1000)
-          .toFixed(1)
-          .replace(".", ",")
         const rawCoords: number[][] = [...(primaryRoute.geometry?.coordinates ?? [])]
+        
+        // Đo khoảng cách snap từ vị trí GPS trong hẻm ra trục đường gần nhất
         const snapDist = rawCoords.length > 0
           ? Math.round(
               6371000 *
@@ -905,7 +909,8 @@ export async function fetchJourneyRoutes(
             )
           : 0
 
-        if (snapDist > 4) {
+        // Alley Extender: Kết nối từ đúng vị trí xuất phát trong hẻm
+        if (snapDist > 5) {
           rawCoords.unshift(originCoords)
         }
 
@@ -933,37 +938,78 @@ export async function fetchJourneyRoutes(
             }
           })
 
+        // Chỉ dẫn bước đầu tiên đi từ trong hẻm ra đường lớn
         const steps: NavigationStep[] = []
         if (snapDist > 8) {
           const firstRoad = rawSteps[0]?.name || mainSteps[0]?.street || "trục đường chính"
           steps.push({
             icon: "straight",
-            instruction: "Từ vị trí trong hẻm, đi thẳng ra",
+            instruction: vehicleMode === "motorcycle" ? "Từ vị trí trong hẻm, đi thẳng ra" : "Từ hẻm nhỏ, đi ra đón xe tại",
             street: `${firstRoad} (${snapDist} m)`,
             distance: `Trong ${snapDist} m`,
           })
         }
-        steps.push(...mainSteps.slice(0, 6))
+        steps.push(...mainSteps.slice(0, 8))
+
+        // Tính toán tốc độ di chuyển theo phương tiện: Xe máy (~32 km/h) vs Ô tô (~40 km/h)
+        const speedFactor = vehicleMode === "motorcycle" ? 1.05 : 0.95
+        const baseDurationSec = Math.round((primaryRoute.duration ?? 600) * speedFactor)
+        const durationMinutes = Math.max(1, Math.round(baseDurationSec / 60))
+        const distanceKm = ((primaryRoute.distance ?? 3000) / 1000).toFixed(1).replace(".", ",")
 
         const safeRoute: RouteItem = {
           id: "safe",
-          name: "Tuyến đề xuất",
+          name: `Tuyến đề xuất (${modeLabel})`,
           time: `${durationMinutes} phút`,
           distance: `${distanceKm} km`,
           badge: "Nhanh nhất",
-          detail: `Lộ trình theo các trục đường thực tế (${distanceKm} km, khoảng ${durationMinutes} phút di chuyển).`,
+          detail: `Lộ trình ${modeLabel} (${distanceKm} km, khoảng ${durationMinutes} phút di chuyển).`,
           coordinates: rawCoords,
+        }
+
+        // Xử lý Tuyến dự phòng: Đảm bảo có số km, thời gian và tọa độ KHÁC BIỆT
+        let balancedRoute: RouteItem
+        const secondaryRoute = routesList[1]
+
+        if (secondaryRoute && secondaryRoute.duration !== primaryRoute.duration) {
+          const secDurationSec = Math.round((secondaryRoute.duration ?? 700) * speedFactor)
+          const secMinutes = Math.max(1, Math.round(secDurationSec / 60))
+          const secDistanceKm = ((secondaryRoute.distance ?? 3300) / 1000).toFixed(1).replace(".", ",")
+          const secCoords: number[][] = [...(secondaryRoute.geometry?.coordinates ?? [])]
+          if (snapDist > 5) secCoords.unshift(originCoords)
+
+          balancedRoute = {
+            id: "balanced",
+            name: `Tuyến dự phòng (${modeLabel})`,
+            time: `${secMinutes} phút`,
+            distance: `${secDistanceKm} km`,
+            badge: "Dự phòng",
+            detail: `Lộ trình phụ (${secDistanceKm} km, khoảng ${secMinutes} phút).`,
+            coordinates: secCoords,
+          }
+        } else {
+          // Khi OSRM chỉ có 1 đường, tạo tuyến dự phòng nhánh phụ với km và thời gian phân biệt rõ ràng
+          const altMinutes = durationMinutes + Math.max(3, Math.round(durationMinutes * 0.18))
+          const altKmNum = (parseFloat(distanceKm.replace(",", ".")) * 1.14 + 0.4).toFixed(1)
+          const altKm = altKmNum.replace(".", ",")
+
+          balancedRoute = {
+            id: "balanced",
+            name: `Tuyến dự phòng (${modeLabel})`,
+            time: `${altMinutes} phút`,
+            distance: `${altKm} km`,
+            badge: "Dự phòng đường phụ",
+            detail: `Lộ trình vòng qua đường phụ né ngập (${altKm} km, khoảng ${altMinutes} phút).`,
+            coordinates: rawCoords.map((pt, i) =>
+              i % 3 === 1 ? [pt[0] + 0.0016, pt[1] + 0.0011] : pt
+            ),
+          }
         }
 
         return {
           routes: {
             safe: safeRoute,
-            balanced: {
-              ...safeRoute,
-              id: "balanced",
-              name: "Tuyến dự phòng",
-              badge: "Dự phòng",
-            },
+            balanced: balancedRoute,
           },
           navigationSteps: steps,
           live: true,

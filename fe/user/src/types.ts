@@ -2,7 +2,9 @@ export type IconName =
   | "alert"
   | "arrow"
   | "bell"
+  | "bike"
   | "camera"
+  | "car"
   | "check"
   | "chevron"
   | "chevron-left"
@@ -27,6 +29,7 @@ export type IconName =
   | "user"
 
 export type RouteId = "safe" | "balanced"
+export type VehicleMode = "motorcycle" | "car"
 export type AppTab = "map" | "tracking" | "saved"
 export type ReportType = "flood" | "drain"
 export type Severity = "low" | "medium" | "high"
@@ -73,6 +76,7 @@ export type RouteEndpoint = {
   address?: string
   district?: string
   coords: [number, number] // [lng, lat]
+  isCurrentLocation?: boolean
 }
 
 export type MapFloodPoint = {

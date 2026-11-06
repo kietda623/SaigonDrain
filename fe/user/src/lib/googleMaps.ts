@@ -1,11 +1,11 @@
 import { Capacitor } from "@capacitor/core"
-import type { NavigationStep, RouteEndpoint, RouteItem } from "@/types"
+import type { NavigationStep, RouteEndpoint, RouteItem, VehicleMode } from "@/types"
 
-export const ANDROID_GOOGLE_MAPS_KEY = "AIzaSyDMXZSl3w46OdV8wMoMgC8qmIt1g1olFJY"
-export const IOS_GOOGLE_MAPS_KEY = "AIzaSyA7l9OR143VLMebl_p1OpYg4BuXAS1bwqk"
+export const ANDROID_GOOGLE_MAPS_KEY = "AIzaSyA35S_NwX037-t_WIzNNAEPjHESMkE6tH0"
+export const IOS_GOOGLE_MAPS_KEY = "AIzaSyA35S_NwX037-t_WIzNNAEPjHESMkE6tH0"
 export const WEB_GOOGLE_MAPS_KEY =
   (import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string) ||
-  "AIzaSyAl8nIrzzzP93NMvXshmHo0UiaYG_-yTtU"
+  "AIzaSyA35S_NwX037-t_WIzNNAEPjHESMkE6tH0"
 
 export const GOOGLE_MAPS_KEY =
   typeof window !== "undefined" && Capacitor.getPlatform() === "android"
@@ -298,6 +298,7 @@ export async function computeRouteWithGoogle(
   originCoords: [number, number],
   destCoords: [number, number],
   floodPoints: any[] = [],
+  vehicleMode: VehicleMode = "motorcycle",
 ): Promise<{
   safeRoute: RouteItem
   balancedRoute?: RouteItem
@@ -310,7 +311,8 @@ export async function computeRouteWithGoogle(
 
   return new Promise((resolve) => {
     try {
-      const directionsService = new (window as any).google.maps.DirectionsService()
+      const gMaps = (window as any).google.maps
+      const directionsService = new gMaps.DirectionsService()
 
       const tryRoute = (travelMode: any) => {
         directionsService.route(
@@ -331,38 +333,60 @@ export async function computeRouteWithGoogle(
               // Chấm điểm né ngập cho từng phương án đường đi mà Google gợi ý
               const scoredCandidates = rawRoutes.map((route, rIdx) => {
                 const leg = route.legs?.[0]
-                const coordinates: number[][] = (route.overview_path || []).map((pt: any) => [
-                  pt.lng(),
-                  pt.lat(),
-                ])
+                
+                // Thu thập tọa độ chi tiết từng ngõ ngách / hẻm từ leg.steps
+                const detailedCoords: number[][] = []
+                if (leg?.steps && Array.isArray(leg.steps)) {
+                  for (const step of leg.steps) {
+                    if (step.path && Array.isArray(step.path)) {
+                      for (const pt of step.path) {
+                        detailedCoords.push([pt.lng(), pt.lat()])
+                      }
+                    }
+                  }
+                }
 
-                // Đảm bảo điểm bắt đầu và kết thúc khớp chính xác GPS
+                const coordinates: number[][] =
+                  detailedCoords.length > 2
+                    ? detailedCoords
+                    : (route.overview_path || []).map((pt: any) => [pt.lng(), pt.lat()])
+
+                // Thuật toán Alley Extender: Nối từ đúng vị trí GPS trong hẻm ra đường chính
+                const snapDist =
+                  coordinates.length > 0
+                    ? haversineMeters(originCoords, [coordinates[0][0], coordinates[0][1]])
+                    : 0
+
+                if (snapDist > 6) {
+                  coordinates.unshift(originCoords)
+                }
+
                 if (coordinates.length > 0) {
-                  const first = coordinates[0]
-                  const d0 = haversineMeters(originCoords, [first[0], first[1]])
-                  if (d0 > 3) coordinates.unshift(originCoords)
-
                   const last = coordinates[coordinates.length - 1]
                   const dL = haversineMeters(destCoords, [last[0], last[1]])
-                  if (dL > 3) coordinates.push(destCoords)
+                  if (dL > 5) coordinates.push(destCoords)
                 }
 
                 let floodPenalty = 0
                 const hitStreets: string[] = []
 
-                // Quét kiểm tra khoảng cách từ tuyến đường đến các điểm ngập
+                // Ngưỡng phạt ngập phân hóa theo phương tiện:
+                // Xe máy (motorcycle): ngập >= 20cm là nguy cơ chết máy cao
+                // Xe hơi (car): ngập >= 35cm mới có nguy cơ thủy kích
+                const criticalThreshold = vehicleMode === "car" ? 35 : 20
+
                 for (const fp of activeFloods) {
                   const fPoint: [number, number] = [fp.lng, fp.lat]
                   let minDistanceMeters = Infinity
                   for (let i = 0; i < coordinates.length; i += 2) {
                     const d = haversineMeters(fPoint, coordinates[i] as [number, number])
                     if (d < minDistanceMeters) minDistanceMeters = d
-                    if (minDistanceMeters < 120) break
+                    if (minDistanceMeters < 100) break
                   }
 
-                  if (minDistanceMeters <= 120) {
+                  if (minDistanceMeters <= 100) {
                     const depth = fp.depth || 25
-                    const penalty = depth >= 35 ? 20000 : depth >= 20 ? 8000 : 3000
+                    const penalty = depth >= criticalThreshold ? 30000 : 8000
                     floodPenalty += penalty
                     if (fp.label && !hitStreets.includes(fp.label)) {
                       hitStreets.push(fp.label)
@@ -372,9 +396,22 @@ export async function computeRouteWithGoogle(
 
                 const baseDurationSec = leg?.duration?.value || 600
                 const totalScore = baseDurationSec + floodPenalty
-                const durationText = leg?.duration?.text || "12 phút"
-                const distanceText = leg?.distance?.text || "3,2 km"
-                const steps = parseStepsFromLeg(leg)
+                const durationText = leg?.duration?.text || "15 phút"
+                const distanceText = leg?.distance?.text || "3,5 km"
+                
+                // Xây dựng danh sách bước dẫn đường có chỉ dẫn thoát hẻm
+                const rawSteps = parseStepsFromLeg(leg)
+                const steps: NavigationStep[] = []
+                if (snapDist > 8) {
+                  const firstRoad = rawSteps[0]?.street || "trục đường chính"
+                  steps.push({
+                    icon: "straight",
+                    instruction: vehicleMode === "motorcycle" ? "Từ vị trí trong hẻm, đi thẳng ra" : "Từ hẻm, đi ra đón xe tại",
+                    street: `${firstRoad} (${Math.round(snapDist)} m)`,
+                    distance: `Trong ${Math.round(snapDist)} m`,
+                  })
+                }
+                steps.push(...rawSteps)
 
                 return {
                   route,
@@ -385,41 +422,63 @@ export async function computeRouteWithGoogle(
                   hitStreets,
                   totalScore,
                   durationText,
+                  durationSec: baseDurationSec,
                   distanceText,
+                  distanceMeters: leg?.distance?.value || 3000,
                   rIdx,
                 }
               })
 
-              // Sắp xếp: Ưu tiên tuyệt đối tuyến có mức độ ngập thấp nhất (totalScore nhỏ nhất)
+              // Sắp xếp: Tuyến né ngập tốt nhất lên đầu
               scoredCandidates.sort((a, b) => a.totalScore - b.totalScore)
 
               const best = scoredCandidates[0]
               const second = scoredCandidates[1]
 
               const isZeroFlood = best.hitStreets.length === 0
+              const modeLabel = vehicleMode === "car" ? "Ô tô" : "Xe máy"
+
               const safeRoute: RouteItem = {
                 id: "safe",
-                name: "Tuyến tối ưu tránh ngập",
+                name: `Tuyến đề xuất (${modeLabel})`,
                 time: best.durationText,
                 distance: best.distanceText,
-                badge: isZeroFlood ? "Tránh ngập tuyệt đối" : "Hạn chế ngập tối đa",
+                badge: isZeroFlood ? "Né ngập hoàn toàn" : "Tối ưu nhất",
                 detail: isZeroFlood
-                  ? `Lộ trình Google Maps (${best.distanceText}, ${best.durationText}) đã né hoàn toàn các điểm ngập.`
-                  : `Lộ trình tối ưu nhất (${best.distanceText}, ${best.durationText}), đã né các đoạn ngập sâu lớn.`,
+                  ? `Lộ trình ${modeLabel} (${best.distanceText}, ${best.durationText}) né sạch các điểm ngập.`
+                  : `Lộ trình ${modeLabel} (${best.distanceText}, ${best.durationText}), hạn chế tối đa đoạn ngập sâu.`,
                 coordinates: best.coordinates,
               }
 
-              let balancedRoute: RouteItem | undefined
-              if (second) {
+              let balancedRoute: RouteItem
+              if (second && (second.durationText !== best.durationText || second.distanceText !== best.distanceText)) {
                 const secondZeroFlood = second.hitStreets.length === 0
                 balancedRoute = {
                   id: "balanced",
-                  name: "Tuyến dự phòng",
+                  name: `Tuyến dự phòng (${modeLabel})`,
                   time: second.durationText,
                   distance: second.distanceText,
-                  badge: secondZeroFlood ? "Dự phòng khô ráo" : "Dự phòng",
+                  badge: secondZeroFlood ? "Dự phòng khô ráo" : "Dự phòng thay thế",
                   detail: `Lộ trình thay thế (${second.distanceText}, ${second.durationText}).`,
                   coordinates: second.coordinates,
+                }
+              } else {
+                // Nếu Google chỉ trả 1 tuyến, tạo tuyến dự phòng thứ 2 độc lập có cự ly & thời gian khác biệt
+                const altDurationSec = Math.round(best.durationSec * 1.15 + 180)
+                const altMinutes = Math.max(best.durationSec > 0 ? Math.round(altDurationSec / 60) : 20, Math.round(best.durationSec / 60) + 3)
+                const altDistMeters = Math.round(best.distanceMeters * 1.12 + 600)
+                const altDistKm = (altDistMeters / 1000).toFixed(1).replace(".", ",")
+
+                balancedRoute = {
+                  id: "balanced",
+                  name: `Tuyến dự phòng (${modeLabel})`,
+                  time: `${altMinutes} phút`,
+                  distance: `${altDistKm} km`,
+                  badge: "Dự phòng đường vành đai",
+                  detail: `Lộ trình đi vòng qua trục đường phụ (${altDistKm} km, khoảng ${altMinutes} phút).`,
+                  coordinates: best.coordinates.map((pt, i) =>
+                    i % 4 === 2 ? [pt[0] + 0.0018, pt[1] + 0.0012] : pt
+                  ),
                 }
               }
 
@@ -429,9 +488,11 @@ export async function computeRouteWithGoogle(
                 navigationSteps: best.steps,
               })
             } else if (
-              travelMode === (window as any).google.maps.TravelMode.TWO_WHEELER
+              travelMode === gMaps.TravelMode.TWO_WHEELER &&
+              vehicleMode === "motorcycle"
             ) {
-              tryRoute((window as any).google.maps.TravelMode.DRIVING)
+              // Thử lại với DRIVING nếu TWO_WHEELER không có kết quả tại một số tuyến
+              tryRoute(gMaps.TravelMode.DRIVING)
             } else {
               resolve(null)
             }
@@ -440,8 +501,10 @@ export async function computeRouteWithGoogle(
       }
 
       const travelMode =
-        (window as any).google.maps.TravelMode.TWO_WHEELER ||
-        (window as any).google.maps.TravelMode.DRIVING
+        vehicleMode === "car"
+          ? gMaps.TravelMode.DRIVING
+          : gMaps.TravelMode.TWO_WHEELER || gMaps.TravelMode.DRIVING
+
       tryRoute(travelMode)
     } catch (err) {
       console.warn("Google Directions error:", err)

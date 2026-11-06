@@ -792,6 +792,46 @@ h3 {
   position: relative;
 }
 
+.search-vehicle-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 8px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  padding: 3px 4px;
+  border-radius: 14px;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.vehicle-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #475569;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 180ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.vehicle-tab-btn:hover {
+  color: #0f766e;
+  background: rgba(15, 118, 110, 0.08);
+}
+
+.vehicle-tab-btn.is-active {
+  background: #0f766e;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(15, 118, 110, 0.35);
+}
+
 .search-input {
   width: 100%;
   border: 1px solid transparent;
@@ -1647,6 +1687,60 @@ h3 {
 
 .route-heading h2 {
   font-size: 16px;
+}
+
+.journey-vehicle-selector {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.vehicle-select-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1.5px solid var(--line);
+  background: #f8fafc;
+  cursor: pointer;
+  text-align: left;
+  transition: all 180ms ease;
+}
+
+.vehicle-select-chip:hover {
+  border-color: #0f766e;
+  background: #ffffff;
+}
+
+.vehicle-select-chip.is-active {
+  border-color: #0f766e;
+  background: #f0fdfa;
+  box-shadow: 0 2px 10px rgba(15, 118, 110, 0.12);
+}
+
+.vehicle-chip-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #0f172a;
+  font-size: 14px;
+}
+
+.vehicle-select-chip.is-active .vehicle-chip-main {
+  color: #0f766e;
+}
+
+.vehicle-select-chip small {
+  font-size: 11px;
+  color: #64748b;
+  line-height: 1.2;
+}
+
+.vehicle-select-chip.is-active small {
+  color: #115e59;
 }
 
 .route-options {
