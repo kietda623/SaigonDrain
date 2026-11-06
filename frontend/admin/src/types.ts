@@ -52,7 +52,7 @@ export type MapPoint = {
   lat?: number
   lng?: number
   elevationM?: number
-  type: "flood" | "pending" | "risk" | "sensor"
+  type: "flood" | "pending" | "risk" | "sensor" | "history"
   severity: Severity
   label: string
   district: string
@@ -60,6 +60,9 @@ export type MapPoint = {
   depth: number
   historyCount: number
   linkedReportId?: string
+  causes?: string[]
+  maxDepth?: number
+  years?: number[]
 }
 
 export type AlertDraft = {

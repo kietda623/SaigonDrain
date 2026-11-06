@@ -63,6 +63,10 @@ function OverviewPage({
   const highRiskCount = points.filter(
     (point) => point.severity !== "medium",
   ).length
+  const criticalPointsCount = points.filter(
+    (point) => point.severity === "critical",
+  ).length
+  const alertAreasCount = new Set(activeAlerts.map((a) => a.area)).size
   const totalReports = reports.filter(
     (report) => report.status !== "rejected",
   ).length
@@ -76,7 +80,7 @@ function OverviewPage({
         label: "Tổng báo cáo ngập",
         meta: (
           <>
-            <span className="trend-up">↗ 18%</span> so với hôm qua
+            <span className="trend-up">Realtime</span> cập nhật tự động
           </>
         ),
         data: [8, 11, 10, 17, 21, 19, 28],
@@ -88,7 +92,10 @@ function OverviewPage({
         label: "Điểm nguy cơ cao",
         meta: (
           <>
-            <span className="urgent-dot" /> 3 điểm cần ưu tiên
+            <span className="urgent-dot" />{" "}
+            {criticalPointsCount > 0
+              ? `${criticalPointsCount} điểm mức nghiêm trọng`
+              : "Không có điểm nghiêm trọng"}
           </>
         ),
         data: [9, 12, 8, 15, 17, 19, 18],
@@ -98,7 +105,13 @@ function OverviewPage({
         tone: "amber",
         value: pendingCount,
         label: "Chờ xác minh",
-        meta: <>Thời gian xử lý TB 6 phút</>,
+        meta: (
+          <>
+            {pendingCount > 0
+              ? `${pendingCount} tin cần duyệt ngay`
+              : "Hàng chờ đã xử lý hết"}
+          </>
+        ),
         data: [16, 13, 18, 12, 10, 7, 5],
       },
       {
@@ -106,11 +119,24 @@ function OverviewPage({
         tone: "teal",
         value: activeAlerts.length,
         label: "Cảnh báo đang phát",
-        meta: <>Phủ 7 khu vực ảnh hưởng</>,
+        meta: (
+          <>
+            {activeAlerts.length > 0
+              ? `Phủ ${alertAreasCount} khu vực ảnh hưởng`
+              : "Hệ thống an toàn"}
+          </>
+        ),
         data: [3, 4, 4, 6, 5, 7, 7],
       },
     ],
-    [activeAlerts.length, highRiskCount, pendingCount, totalReports],
+    [
+      activeAlerts.length,
+      alertAreasCount,
+      criticalPointsCount,
+      highRiskCount,
+      pendingCount,
+      totalReports,
+    ],
   )
 
   return (

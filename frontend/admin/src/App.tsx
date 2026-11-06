@@ -477,8 +477,8 @@ export default function App() {
             <span>SaigonDrain AI · Trung tâm điều hành đô thị thông minh</span>
             <span>
               {isLiveBackend
-                ? "Đã kết nối Backend API & Open-Meteo"
-                : "Dữ liệu mô phỏng cho Hackathon 2025"}
+                ? "Đã kết nối Backend API & Open-Meteo · Hệ thống Vận hành TP.HCM"
+                : "SaigonDrain AI v2.0 · Hệ thống Vận hành & Cảnh báo Ngập lụt Đô thị TP.HCM"}
             </span>
           </footer>
         </div>
@@ -487,6 +487,7 @@ export default function App() {
       {reviewing && (
         <ReportReviewModal
           report={reviewing}
+          reports={reports}
           onClose={() => setReviewing(null)}
           onApprove={approveReport}
           onReject={() => {
