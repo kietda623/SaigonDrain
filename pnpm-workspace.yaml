@@ -1,3 +1,7 @@
 packages:
+  - "frontend/*"
+  - "backend"
   - "fe/*"
-  - "be/*"
+  - "be"
+allowBuilds:
+  '@scarf/scarf': set this to true or false
