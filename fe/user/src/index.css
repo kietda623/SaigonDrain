@@ -4084,6 +4084,41 @@ body:has(.in-weather-view.theme-night) {
   }
 }
 
+.nav-hud-reroute-toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: linear-gradient(135deg, #ea580c, #c2410c);
+  color: #ffffff;
+  padding: 10px 16px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 700;
+  animation: pulse-reroute 1.5s infinite;
+  box-shadow: 0 4px 16px rgba(234, 88, 12, 0.45);
+}
+
+.reroute-pulse-ring {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.4);
+  animation: blink-dot 1s infinite alternate;
+  flex-shrink: 0;
+}
+
+@keyframes pulse-reroute {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.015); }
+  100% { transform: scale(1); }
+}
+
+@keyframes blink-dot {
+  from { opacity: 0.3; }
+  to { opacity: 1; }
+}
+
 .nav-hud-maneuver {
   display: flex;
   align-items: flex-start;

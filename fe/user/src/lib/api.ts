@@ -822,19 +822,20 @@ export async function fetchForecastSlots(): Promise<{
 export async function fetchJourneyRoutes(
   originCoords: [number, number],
   destCoords: [number, number],
+  floodPoints: MapFloodPoint[] = [],
 ): Promise<{
   routes: Record<RouteId, RouteItem>
   navigationSteps: NavigationStep[]
   live: boolean
 }> {
-  // 1. Ưu tiên cao nhất: Dùng Google Maps Directions Service (hỗ trợ xe máy qua từng ngõ hẻm)
+  // 1. Ưu tiên cao nhất: Dùng Google Maps Directions Service với thuật toán lọc né ngập
   try {
-    const googleRes = await computeRouteWithGoogle(originCoords, destCoords)
+    const googleRes = await computeRouteWithGoogle(originCoords, destCoords, floodPoints)
     if (googleRes && Array.isArray(googleRes.safeRoute?.coordinates) && googleRes.safeRoute.coordinates.length > 1) {
       return {
         routes: {
           safe: googleRes.safeRoute,
-          balanced: {
+          balanced: googleRes.balancedRoute ?? {
             ...googleRes.safeRoute,
             id: "balanced",
             name: "Tuyến dự phòng",

@@ -99,6 +99,7 @@ function App() {
   const [navigationSteps, setNavigationSteps] = useState<NavigationStep[]>([])
   const [weather, setWeather] = useState<WeatherSnapshot | null>(null)
   const [isLiveBackend, setIsLiveBackend] = useState(false)
+  const [rerouteNotice, setRerouteNotice] = useState<string | null>(null)
 
   // Tự động chẩn đoán và cập nhật điểm ngập theo thời tiết thực và mốc dự báo được chọn
   useEffect(() => {
@@ -135,6 +136,7 @@ function App() {
         const routesRes = await fetchJourneyRoutes(
           origin.coords,
           destination.coords,
+          pointsRes.length > 0 ? pointsRes : floodPoints,
         )
         if (!active) return
         setRoutesData(routesRes.routes)
@@ -164,6 +166,7 @@ function App() {
           const routesRes = await fetchJourneyRoutes(
             origin.coords,
             destination.coords,
+            pointsRes.length > 0 ? pointsRes : floodPoints,
           )
           if (!active) return
           setRoutesData(routesRes.routes)
@@ -240,6 +243,41 @@ function App() {
     })
     setPanelExpanded(false)
     setActiveTab("map")
+  }
+
+
+  async function handleAutoReroute(currentCoords: [number, number]) {
+    if (!destination) return
+    setRerouteNotice("Đang tính toán lại lộ trình tránh ngập...")
+
+    const updatedOrigin: RouteEndpoint = {
+      label: "Vị trí hiện tại",
+      address: "Đoạn đường vừa rẽ",
+      district: origin?.district || "TP.HCM",
+      coords: currentCoords,
+    }
+    setOrigin(updatedOrigin)
+
+    try {
+      const routesRes = await fetchJourneyRoutes(
+        currentCoords,
+        destination.coords,
+        floodPoints,
+      )
+      if (routesRes && routesRes.routes?.safe?.coordinates && routesRes.routes.safe.coordinates.length > 1) {
+        setRoutesData(routesRes.routes)
+        setNavigationSteps(routesRes.navigationSteps)
+        setNavStepIndex(0)
+        setLiveDistanceToTurn(null)
+        setRerouteNotice("Đã đổi lộ trình mới tránh ngập!")
+        setTimeout(() => setRerouteNotice(null), 3000)
+      } else {
+        setRerouteNotice(null)
+      }
+    } catch (err) {
+      console.warn("Auto-reroute error:", err)
+      setRerouteNotice(null)
+    }
   }
 
   function handleStopNavigation() {
@@ -324,6 +362,7 @@ function App() {
           mapMode={mapMode}
           onToggleMapMode={() => setMapMode((prev) => (prev === "realtime" ? "history" : "realtime"))}
           isNavigating={isNavigating}
+          onReroute={handleAutoReroute}
           navStepIndex={navStepIndex}
           navigationSteps={navigationSteps}
           onProgressUpdate={(info) => {
@@ -410,6 +449,12 @@ function App() {
 
         {isNavigating && (
           <div className="google-nav-hud-top">
+            {rerouteNotice && (
+              <div className="nav-hud-reroute-toast">
+                <div className="reroute-pulse-ring" />
+                <span className="reroute-toast-text">{rerouteNotice}</span>
+              </div>
+            )}
             <div className="nav-hud-maneuver">
               <div className={`nav-hud-turn-icon is-${currentStep?.icon || "straight"}`}>
                 <Icon name={currentStep?.icon || "straight"} size={32} />

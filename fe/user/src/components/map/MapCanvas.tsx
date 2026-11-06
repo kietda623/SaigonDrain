@@ -28,6 +28,7 @@ function MapCanvas({
   onToggleMapMode,
   onStepChange,
   onProgressUpdate,
+  onReroute,
 }: {
   route: RouteId
   routesData: Record<RouteId, RouteItem>
@@ -48,6 +49,7 @@ function MapCanvas({
     remainingMinutes: number
     speedKmh: number
   }) => void
+  onReroute?: (userLocation: [number, number]) => void
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<LibreMap | null>(null)
@@ -71,6 +73,10 @@ function MapCanvas({
   onStepChangeRef.current = onStepChange
   const onProgressUpdateRef = useRef(onProgressUpdate)
   onProgressUpdateRef.current = onProgressUpdate
+  const onRerouteRef = useRef(onReroute)
+  onRerouteRef.current = onReroute
+  const offRouteCounterRef = useRef<number>(0)
+  const lastRerouteTimeRef = useRef<number>(0)
   const [routeStatus, setRouteStatus] = useState<
     "idle" | "loading" | "live" | "fallback"
   >("idle")
@@ -735,9 +741,25 @@ function MapCanvas({
         runningSum += segDist
       }
 
-      // Nếu người dùng đang đi trên đường (< 65m): snap xe vào trục đường
-      // Nếu người dùng đi lệch xa khỏi đường: dùng vị trí GPS thật
-      const finalPoint: [number, number] = minDistanceToRoad < 65 ? bestSnappedPoint : [rawLng, rawLat]
+      // Phát hiện người dùng rẽ sang hướng khác (Lệch lộ trình > 38m)
+      if (minDistanceToRoad > 38) {
+        offRouteCounterRef.current += 1
+        // Kích hoạt tính toán lại đường đi (Auto-Rerouting) khi chệch lộ trình liên tiếp 2 nhịp GPS
+        if (offRouteCounterRef.current >= 2) {
+          const now = Date.now()
+          if (now - lastRerouteTimeRef.current > 4000) {
+            lastRerouteTimeRef.current = now
+            offRouteCounterRef.current = 0
+            console.log(`[Auto-Reroute] Người dùng đã rẽ sang đường khác (cách lộ trình cũ ${Math.round(minDistanceToRoad)}m). Đang tính lại tuyến né ngập từ [${rawLng}, ${rawLat}]...`)
+            onRerouteRef.current?.([rawLng, rawLat])
+          }
+        }
+      } else {
+        offRouteCounterRef.current = 0
+      }
+
+      // Nếu đang đi trên trục đường (<= 38m): snap vào đường. Nếu đã rẽ sang đường khác: dùng vị trí thật trên đường mới
+      const finalPoint: [number, number] = minDistanceToRoad <= 38 ? bestSnappedPoint : [rawLng, rawLat]
       updatePositionOnRoute(finalPoint, bestDistAlongRoute, heading, speed)
     }
 
@@ -783,6 +805,14 @@ function MapCanvas({
       }
     }
 
+
+    // Cho phép click trên bản đồ khi đang dẫn đường để mô phỏng người dùng quẹo trái/phải chệch lộ trình
+    const handleMapClickSim = (e: any) => {
+      if (isNavigatingRef.current && e?.lngLat) {
+        handleRawGpsUpdate(e.lngLat.lng, e.lngLat.lat, null, 28)
+      }
+    }
+    map.on("click", handleMapClickSim)
     // Hiển thị vị trí ban đầu hoặc bước đi thử nghiệm
     if (stepForwardTrigger > 0) {
       const nextDist = Math.min(totalRouteMeters, progressDistanceRef.current + 50)
@@ -795,6 +825,7 @@ function MapCanvas({
     }
 
     return () => {
+      map.off("click", handleMapClickSim)
       if (capWatchIdRef.current !== null) {
         Geolocation.clearWatch({ id: capWatchIdRef.current })
         capWatchIdRef.current = null
