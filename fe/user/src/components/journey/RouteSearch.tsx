@@ -41,6 +41,7 @@ function RouteSearch({
           address: geo.location,
           district: geo.district,
           coords: [longitude, latitude],
+          isCurrentLocation: true,
         }
         onSelectOrigin(place)
         setOriginText(label)
@@ -51,6 +52,7 @@ function RouteSearch({
         const place: RouteEndpoint = {
           label,
           coords: [longitude, latitude],
+          isCurrentLocation: true,
         }
         onSelectOrigin(place)
         setOriginText(label)
@@ -164,12 +166,17 @@ function RouteSearch({
     targetField?: "origin" | "dest",
   ) => {
     const field = targetField ?? activeField
+    const isGps = Boolean(place.isCurrentLocation || place.label.includes("Vị trí của bạn"))
+    const finalPlace: RouteEndpoint = {
+      ...place,
+      isCurrentLocation: isGps,
+    }
     if (field === "origin") {
-      setOriginText(place.label)
-      onSelectOrigin(place)
+      setOriginText(finalPlace.label)
+      onSelectOrigin(finalPlace)
     } else if (field === "dest") {
-      setDestText(place.label)
-      onSelectDestination(place)
+      setDestText(finalPlace.label)
+      onSelectDestination(finalPlace)
     }
     setSuggestions([])
     setActiveField(null)
@@ -248,6 +255,17 @@ function RouteSearch({
                   if (!val.trim()) onSelectOrigin(null)
                 }}
                 onFocus={() => setActiveField("origin")}
+                onBlur={() => {
+                  window.setTimeout(async () => {
+                    const text = originText.trim()
+                    if (text && (!origin || origin.label !== text)) {
+                      const res = await searchPlacesApi(text)
+                      if (res.length > 0) {
+                        commitPlace(res[0], "origin")
+                      }
+                    }
+                  }, 200)
+                }}
                 onKeyDown={(e) => handleKeyDown(e, "origin")}
                 placeholder="Nhập điểm đi hoặc bấm nút GPS…"
                 type="text"
@@ -296,6 +314,17 @@ function RouteSearch({
                   if (!val.trim()) onSelectDestination(null)
                 }}
                 onFocus={() => setActiveField("dest")}
+                onBlur={() => {
+                  window.setTimeout(async () => {
+                    const text = destText.trim()
+                    if (text && (!destination || destination.label !== text)) {
+                      const res = await searchPlacesApi(text)
+                      if (res.length > 0) {
+                        commitPlace(res[0], "dest")
+                      }
+                    }
+                  }, 200)
+                }}
                 onKeyDown={(e) => handleKeyDown(e, "dest")}
                 placeholder="Nhập điểm đến (tên đường, địa chỉ, địa danh…)"
                 type="text"
@@ -335,7 +364,7 @@ function RouteSearch({
           className="search-suggestions"
           role="listbox"
         >
-          {activeField === "origin" && (
+          {activeField === "origin" && !originText.trim() && (
             <li key="gps-current-location">
               <button
                 className="suggestion-item is-gps-item"

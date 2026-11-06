@@ -255,6 +255,7 @@ function App() {
       address: "Đoạn đường vừa rẽ",
       district: origin?.district || "TP.HCM",
       coords: currentCoords,
+      isCurrentLocation: true,
     }
     setOrigin(updatedOrigin)
 

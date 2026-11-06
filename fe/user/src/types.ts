@@ -73,6 +73,7 @@ export type RouteEndpoint = {
   address?: string
   district?: string
   coords: [number, number] // [lng, lat]
+  isCurrentLocation?: boolean
 }
 
 export type MapFloodPoint = {
