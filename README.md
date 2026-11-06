@@ -1,118 +1,168 @@
-# SaigonDrain AI — Demo FE/BE
+# SaigonDrain AI — HCMC Road Flood Prediction & Navigation System
+## Hệ Thống Dự Báo Ngập Đô Thị & Điều Hướng Tuyến Đường An Toàn TP.HCM
 
-Hai giao diện demo cho sản phẩm **SaigonDrain AI** (ngập úng đô thị TP. Hồ Chí Minh), nằm trong một pnpm monorepo với frontend tách riêng khỏi backend:
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue.svg)](https://www.typescriptlang.org/)
+[![NestJS](https://img.shields.io/badge/NestJS-11.0-ea2845.svg)](https://nestjs.com/)
+[![React](https://img.shields.io/badge/React-19.0-61dafb.svg)](https://react.dev/)
+[![Vue](https://img.shields.io/badge/Vue-3.5-42b883.svg)](https://vuejs.org/)
+[![Python](https://img.shields.io/badge/Python-3.12-3776ab.svg)](https://www.python.org/)
+[![Capacitor](https://img.shields.io/badge/Capacitor-Android%20Native-119eff.svg)](https://capacitorjs.com/)
 
-| App | Mô tả | Dev URL |
-| --- | --- | --- |
-| `fe/user` | Bản đồ dẫn đường an toàn, dự báo mưa/ngập, báo cáo cộng đồng cho người dân | http://localhost:5173 |
-| `fe/admin` | Trung tâm điều hành: Tổng quan, Bản đồ, Báo cáo, Cảnh báo, Người dùng, Phân tích | http://localhost:5174 |
+---
 
-Dữ liệu là dữ liệu mô phỏng phục vụ demo; chưa có backend — `be/` là chỗ dành sẵn và chưa chứa mã server. App user dùng tile OpenStreetMap và OSRM công khai để vẽ tuyến đường.
+## 1. Cấu trúc Dự án (Repository Architecture)
 
-Giao diện theo hướng **“Mực nước”** — thước đo mực nước, đường đồng mức, kênh rạch Sài Gòn; teal sâu cho hành động, cát ấm và coral cho nguy cơ. Token, typography, component và chuẩn accessibility nằm trong [DESIGN.md](DESIGN.md); bối cảnh sản phẩm trong [PRODUCT.md](PRODUCT.md).
-
-## Tech stack
-
-- React 19 + TypeScript 5.7
-- Vite 8 + `@vitejs/plugin-react`
-- Tailwind CSS v4 (`@tailwindcss/vite`)
-- User: `maplibre-gl`
-- Admin: `lucide-react`
-- Font: Be Vietnam Pro (Google Fonts)
-
-## Cấu trúc
+Hệ thống được tổ chức theo chuẩn cấu trúc module hóa thống nhất:
 
 ```text
-.
-├─ fe/
-│  ├─ user/                 # React app, port 5173
-│  │  └─ src/
-│  │     ├─ components/     # layout, map, journey, report, ui
-│  │     ├─ data/           # mock data
-│  │     ├─ types.ts
-│  │     └─ index.css       # design system/global styles
-│  └─ admin/                # React app, port 5174
-│     └─ src/
-│        ├─ components/     # layout, pages, overview, map, reports, alerts, users, ui
-│        ├─ data/           # mock data
-│        ├─ lib/            # analytics helpers
-│        ├─ types.ts
-│        └─ index.css
-├─ be/
-│  └─ README.md             # chỗ dành sẵn cho backend, chưa có server
-├─ docs/
-│  ├─ saigondrain-product-brief.pdf
-│  └─ plans/
-├─ AGENTS.md                # hướng dẫn làm việc trong repo
-├─ PRODUCT.md               # product truth
-├─ DESIGN.md                # design system "Mực nước"
-├─ package.json             # workspace scripts
-└─ pnpm-workspace.yaml
+hcmc-road-flood/
+├── docs/
+│   ├── PRD.md                  # Tài liệu Yêu cầu Sản phẩm (Product Requirements Document)
+│   ├── SYSTEM_DESIGN.md        # Kiến trúc Hệ thống & Luồng Dữ liệu (System Design)
+│   ├── API_SPEC.md             # Đặc tả giao thức API REST & Server-Sent Events (SSE)
+│   └── AI_SAFETY.md            # Tiêu chuẩn An toàn AI, Ngưỡng Thủy kích & Pháp lý
+├── ml/
+│   ├── ML_TRAINING_SPEC.md     # Quy chuẩn Huấn luyện Mô hình Học máy Không gian
+│   ├── configs/                # Cấu hình vùng nghiên cứu, đặc trưng GIS và thí nghiệm
+│   ├── data/raw/manifest.yaml  # Bản kê SHA-256 các nguồn dữ liệu IRD, FABDEM, OSM
+│   ├── notebooks/              # Google Colab workflow (colab_first_workflow.ipynb)
+│   ├── scripts/                # Bộ script chạy pipeline, huấn luyện và đánh giá mô hình
+│   ├── src/flood_ml/           # Mã nguồn Python (features, labeling, baseline, training)
+│   ├── tests/                  # Bộ kiểm thử đơn vị & tích hợp
+│   └── pyproject.toml          # Quản lý gói Python 3.12 qua uv
+├── frontend/
+│   ├── user/                   # Ứng dụng di động Người dùng (Vue 3, MapLibre GL, Android Native)
+│   └── admin/                  # Trung tâm điều hành & Kiểm duyệt Đô thị (React 18, Recharts)
+├── backend/
+│   ├── src/                    # Máy chủ NestJS, TypeORM, OSRM/Google Maps, Open-Meteo
+│   ├── docker-compose.yml      # Cấu hình container PostgreSQL 16
+│   └── package.json            # Cấu hình dependencies backend
+└── README.md                   # Hướng dẫn tổng quan và vận hành hệ thống
 ```
 
-## Yêu cầu
+---
 
-- Node.js >= 22
-- pnpm 10+ (repo đang dùng pnpm 12)
+## 2. Bảng Công nghệ Toàn diện (Full Tech Stack)
 
-## Cài đặt
+| Tầng Hệ thống | Công nghệ / Thư viện | Vai trò & Trách nhiệm trong Dự án |
+|---|---|---|
+| **Frontend User** | **Vue 3, Vite 8, Tailwind CSS, MapLibre GL** | Giao diện di động, bản đồ số vector 3D, điều hướng GPS trực tiếp, cảnh báo mực nước |
+| **Mobile Native** | **Capacitor 7 (Android Native)** | Đóng gói mã nguồn web thành ứng dụng Android native, hỗ trợ cảm biến vị trí GPS |
+| **Frontend Admin**| **React 18, TypeScript, Recharts, Lucide** | Bảng điều khiển quản trị, biểu đồ phân tích xu hướng ngập, kiểm duyệt phản ánh người dân |
+| **Backend API**   | **NestJS 11, RxJS, TypeORM** | Cổng API tập trung, thuật toán định tuyến tránh ngập, đồng bộ dữ liệu thời tiết & triều cường |
+| **Cơ sở Dữ liệu** | **PostgreSQL 16 & SQLite** | Quản lý bảng dữ liệu điểm ngập, báo cáo hiện trường, người dùng, lịch sử hành trình |
+| **Dịch vụ Ngoài** | **Open-Meteo, OSRM, Google Routes v2** | Cung cấp dự báo lượng mưa thời gian thực (mm/h), cao độ mặt đất và hình học tuyến đường |
+| **Bản đồ Vector** | **OpenFreeMap Liberty / CARTO Voyager** | Vector Tiles mượt mà 60 FPS, không phụ thuộc API key tốn phí |
+| **ML & GIS Core** | **Python 3.12, LightGBM, GeoPandas, uv** | Trích xuất đặc trưng GIS (FABDEM 30m, độ dốc Horn, khoảng cách kênh rạch), mô hình MCDA & PU learning |
 
+---
+
+## 3. Các Tính năng Nổi bật Đã Triển khai (Key Implemented Features)
+
+1. **Điều hướng Đa phương tiện Thông minh (🛵 Xe máy & 🚗 Xe hơi):**
+   - Xe máy: Cho phép đi qua mạng lưới hẻm kết nối; ngưỡng cảnh báo ngập $15\text{ cm}$, cấm tuyệt đối khi ngập $\ge 20\text{ cm}$.
+   - Xe hơi: Tự động né tránh hẻm nhỏ hẹp ($< 3\text{ m}$); phạt nặng lộ trình khi ngập $\ge 25\text{ cm}$, cấm tuyệt đối $\ge 35\text{ cm}$ để chống thủy kích (hydrolock).
+2. **Thuật toán Alley Extender:**
+   - Tự động bắt tọa độ (snap) từ trong hẻm sâu ra trục đường chính, bổ sung bước điều hướng đầu tiên: *"Từ vị trí trong hẻm, đi thẳng ra trục đường chính (X mét)"*.
+3. **So sánh Hai Tuyến đường Thực tế:**
+   - Cung cấp **Tuyến đề xuất** (nhanh nhất/an toàn nhất) và **Tuyến dự phòng** (đường vòng né ngập) với số km và thời gian thực tế khác biệt.
+4. **Mô phỏng Triều cường Động theo Giờ:**
+   - Mực nước hiển thị tại từng điểm đen biến thiên linh hoạt theo độ sâu lịch sử (`h.depth`) và hàm chu kỳ bán nhật triều sông Sài Gòn (đỉnh triều 05:00 - 07:00 sáng và 17:00 - 19:00 chiều).
+5. **Tích hợp Mô hình Học máy Đánh giá Nguy cơ Ngập (`/api/map/ml/susceptibility`):**
+   - Kết nối trực tiếp thuật toán MCDA & LightGBM từ `ml/` vào backend, gắn nhãn kiểm định an toàn AI trên giao diện người dùng.
+6. **Ứng dụng Di động Android Hoàn chỉnh:**
+   - Đã loại bỏ hoàn toàn mã iOS dư thừa, sẵn sàng mở trong Android Studio để xuất bản APK.
+
+---
+
+## 4. Hướng dẫn Cài đặt & Chạy Thử nghiệm Cục bộ (Local Run Guide)
+
+> [!IMPORTANT]
+> **Lưu ý kiểm thử:** Toàn bộ mã nguồn hiện đang được giữ ở môi trường **Local** để bạn kiểm tra và xác nhận. Không có lệnh push nào được thực thi lên GitHub remote.
+
+### 4.1. Khởi động Toàn bộ Hệ thống bằng Script (Khuyến nghị trên Windows)
+
+Chỉ cần nhấp đúp chuột vào các file script chuẩn bị sẵn tại thư mục gốc:
+
+- **`start-all.bat`**: Khởi động cả User App và Admin Dashboard song song.
+- **`start-backend.bat`**: Khởi động máy chủ NestJS API tại `http://localhost:3000` (Swagger: `http://localhost:3000/api/docs`).
+- **`start-user.bat`**: Khởi động Ứng dụng Người dùng tại `http://localhost:5173`.
+- **`start-admin.bat`**: Khởi động Trang Quản trị tại `http://localhost:5174`.
+- **`sync-android.bat`**: Tự động build và đồng bộ mã nguồn sang dự án Android Studio.
+
+---
+
+### 4.2. Khởi động bằng Dòng lệnh (Terminal / Command Line)
+
+#### Bước 1: Cài đặt Dependencies
 ```bash
+# Cài đặt toàn bộ dependencies của Monorepo
 pnpm install
+
+# Cài đặt dependencies của Backend
+cd backend
+npm install
+cd ..
 ```
 
-## Chạy development
-
-Chạy cả hai app song song:
-
+#### Bước 2: Khởi động Backend (NestJS API)
 ```bash
+cd backend
+npm run start:dev
+```
+*API sẽ lắng nghe tại cổng `3000`. Cơ sở dữ liệu mặc định tự động khởi tạo bảng qua SQLite hoặc PostgreSQL.*
+
+#### Bước 3: Khởi động Frontend
+Mở một cửa sổ Terminal mới:
+```bash
+# Chạy cả 2 ứng dụng song song:
 pnpm dev
+
+# Hoặc chạy riêng từng ứng dụng:
+pnpm dev:user    # http://localhost:5173
+pnpm dev:admin   # http://localhost:5174
 ```
 
-- User: http://localhost:5173
-- Admin: http://localhost:5174
+---
 
-Chạy riêng từng app:
+### 4.3. Kiểm thử Mô hình Machine Learning (`ml/`)
 
 ```bash
-pnpm dev:user
-pnpm dev:admin
-```
+cd ml
 
-Port được khai báo trong `fe/*/vite.config.ts` và có thể override bằng biến môi trường `PORT`:
+# 1. Cài đặt môi trường Python qua uv
+uv sync
+
+# 2. Chạy pipeline xử lý dữ liệu và đánh giá baseline MCDA
+uv run python scripts/run_pipeline.py --config configs/study_area.yaml
+
+# 3. Huấn luyện mô hình Track B Presence-Background
+uv run python scripts/train.py --experiment track_b_pbg --ratio 10 --seed 42
+
+# 4. Chạy kiểm thử tự động
+uv run pytest tests/
+```
+Hoặc mở file notebook tương tác `ml/notebooks/colab_first_workflow.ipynb` trực tiếp trên Google Colab với GPU.
+
+---
+
+### 4.4. Đóng gói Ứng dụng Di động Android
 
 ```bash
-# Git Bash / macOS / Linux
-PORT=6001 pnpm dev:user
-
-# PowerShell
-$env:PORT=6001; pnpm dev:user
+cd frontend/user
+pnpm run build
+pnpm exec cap sync android
+pnpm exec cap open android
 ```
+Sau khi Android Studio mở dự án:
+Chọn menu: **Build** $\rightarrow$ **Build Bundle(s) / APK(s)** $\rightarrow$ **Build APK(s)** để xuất file cài đặt `.apk`.
 
-`strictPort` đang bật, nên nếu port bị chiếm app sẽ báo lỗi thay vì tự đổi port.
+---
 
-## Build & kiểm tra
+## 5. Tài liệu Kỹ thuật Chi tiết (Detailed Documentation)
 
-```bash
-pnpm build          # build cả hai app
-pnpm build:user
-pnpm build:admin
-pnpm typecheck      # tsc --noEmit cho cả hai app
-```
-
-Preview bản build:
-
-```bash
-pnpm preview:user   # http://localhost:4173
-pnpm preview:admin  # http://localhost:4174
-```
-
-## Tài liệu
-
-- [Mô tả sản phẩm](docs/saigondrain-product-brief.pdf)
-- [Design system “Mực nước”](DESIGN.md)
-- [Bối cảnh sản phẩm](PRODUCT.md)
-- [Kế hoạch prototype User](docs/plans/user-map-prototype.md)
-- [Kế hoạch prototype Admin](docs/plans/admin-dashboard.md)
-
-> Tài liệu gốc dùng tên **DrainGuard AI**; giao diện và repo đã được chuẩn hóa thành **SaigonDrain AI**.
+- **[docs/PRD.md](docs/PRD.md)**: Đặc tả chi tiết yêu cầu sản phẩm, đối tượng người dùng và các kịch bản sử dụng.
+- **[docs/SYSTEM_DESIGN.md](docs/SYSTEM_DESIGN.md)**: Thiết kế kiến trúc tổng thể, sơ đồ khối, lưu đồ thuật toán và schema cơ sở dữ liệu.
+- **[docs/API_SPEC.md](docs/API_SPEC.md)**: Danh mục endpoint RESTful, các mã lỗi, cấu trúc payload gửi/nhận và kênh SSE.
+- **[docs/AI_SAFETY.md](docs/AI_SAFETY.md)**: Hướng dẫn an toàn AI, ma trận phòng tránh thủy kích cho xe hơi và chính sách kiểm duyệt tin giả.
+- **[ml/ML_TRAINING_SPEC.md](ml/ML_TRAINING_SPEC.md)**: Tài liệu huấn luyện mô hình học máy, các biến GIS, phương pháp chia khối không gian và tiêu chí đánh giá.

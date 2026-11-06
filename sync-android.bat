@@ -1,6 +1,6 @@
 @echo off
 title SaigonDrain AI - Sync Code to Android
-cd /d "%~dp0\fe\user"
+cd /d "%~dp0\frontend\user"
 echo ========================================================
 echo   Dang Build Web va Dong bo sang Android Studio...
 echo ========================================================
