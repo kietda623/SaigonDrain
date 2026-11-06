@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import Icon from "@/components/ui/Icon"
 import { matchDynamicPlacePool, reverseGeocodeApi, searchPlacesApi } from "@/lib/api"
 import { getUserLocation } from "@/lib/location"
-import type { RouteEndpoint } from "@/types"
+import type { RouteEndpoint, VehicleMode } from "@/types"
 
 function RouteSearch({
   origin,
@@ -10,12 +10,16 @@ function RouteSearch({
   onSelectOrigin,
   onSelectDestination,
   onSwap,
+  vehicleMode = "motorcycle",
+  onSelectVehicleMode,
 }: {
   origin: RouteEndpoint | null
   destination: RouteEndpoint | null
   onSelectOrigin: (place: RouteEndpoint | null) => void
   onSelectDestination: (place: RouteEndpoint | null) => void
   onSwap: () => void
+  vehicleMode?: VehicleMode
+  onSelectVehicleMode?: (mode: VehicleMode) => void
 }) {
   const [originText, setOriginText] = useState(origin?.label ?? "")
   const [destText, setDestText] = useState(destination?.label ?? "")

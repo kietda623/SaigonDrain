@@ -30,6 +30,19 @@ function Icon({
         <circle cx="12" cy="13" r="3" />
       </>
     ),
+    bike: (
+      <>
+        <circle cx="5.5" cy="17.5" r="3.5" />
+        <circle cx="18.5" cy="17.5" r="3.5" />
+        <path d="M15 6a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm-3 11.5L9 11l3-3 3 3.5h3" />
+      </>
+    ),
+    car: (
+      <>
+        <path d="M5 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0Zm10 0a2 2 0 1 0 4 0 2 2 0 0 0-4 0Z" />
+        <path d="M5 17H3v-4l2-5h14l2 5v4h-2M5 12h14" />
+      </>
+    ),
     check: <path d="m5 12 4 4L19 6" />,
     chevron: <path d="m7 10 5 5 5-5" />,
     "chevron-left": <path d="m14 7-5 5 5 5" />,
