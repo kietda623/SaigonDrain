@@ -11,9 +11,6 @@ const config: CapacitorConfig = {
   android: {
     allowMixedContent: true,
   },
-  ios: {
-    contentInset: "always",
-  },
   plugins: {
     Geolocation: {},
   },

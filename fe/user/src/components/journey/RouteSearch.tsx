@@ -239,6 +239,32 @@ function RouteSearch({
       className="route-search-wrap"
       ref={wrapRef}
     >
+      {onSelectVehicleMode && (
+        <div className="search-vehicle-tabs" role="tablist" aria-label="Chọn loại phương tiện">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={vehicleMode !== "car"}
+            className={`vehicle-tab-btn ${vehicleMode !== "car" ? "is-active" : ""}`}
+            onClick={() => onSelectVehicleMode("motorcycle")}
+            title="Lộ trình cho Xe máy (luồn hẻm, né ngập sâu)"
+          >
+            <Icon name="bike" size={16} />
+            <span>Xe máy</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={vehicleMode === "car"}
+            className={`vehicle-tab-btn ${vehicleMode === "car" ? "is-active" : ""}`}
+            onClick={() => onSelectVehicleMode("car")}
+            title="Lộ trình cho Xe hơi (né hẻm nhỏ, trục đường lớn)"
+          >
+            <Icon name="car" size={16} />
+            <span>Xe hơi</span>
+          </button>
+        </div>
+      )}
       <div className="route-search" role="group">
         <div aria-hidden="true" className="search-points">
           <span className="point-current" />
