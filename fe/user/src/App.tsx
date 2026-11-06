@@ -359,6 +359,8 @@ function App() {
           setForecastIndex={setForecastIndex}
           setSelectedRoute={setSelectedRoute}
           weather={weather}
+          vehicleMode={vehicleMode}
+          onSelectVehicleMode={setVehicleMode}
         />
             </div>
           )}
@@ -656,6 +658,8 @@ function App() {
             setForecastIndex={setForecastIndex}
             setSelectedRoute={setSelectedRoute}
             weather={weather}
+            vehicleMode={vehicleMode}
+            onSelectVehicleMode={setVehicleMode}
           />
         </div>
       )}

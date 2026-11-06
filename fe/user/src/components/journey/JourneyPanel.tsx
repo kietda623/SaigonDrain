@@ -6,6 +6,7 @@ import type {
   RouteId,
   RouteItem,
   SavedRoutePair,
+  VehicleMode,
   WeatherSnapshot,
 } from "@/types"
 import JourneyStatus from "@/components/journey/JourneyStatus"
@@ -33,6 +34,8 @@ function JourneyPanel({
   onSelectSavedRoute,
   onRemoveSavedRoute,
   weather,
+  vehicleMode = "motorcycle",
+  onSelectVehicleMode,
 }: {
   forecastIndex: number
   setForecastIndex: (index: number) => void
@@ -53,6 +56,8 @@ function JourneyPanel({
   onSelectSavedRoute?: (pair: SavedRoutePair) => void
   onRemoveSavedRoute?: (id: string) => void
   weather?: WeatherSnapshot | null
+  vehicleMode?: VehicleMode
+  onSelectVehicleMode?: (mode: VehicleMode) => void
 }) {
   const forecastRef = useRef<HTMLDivElement>(null)
   const routesRef = useRef<HTMLDivElement>(null)
