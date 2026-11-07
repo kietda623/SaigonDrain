@@ -655,7 +655,6 @@ export async function fetchMapPointsApi(
     } else if (isTideFlooded) {
       const histDepth = h.depth && h.depth >= 20 ? h.depth : 35
       const tideLevel = (vnHour === 17 || vnHour === 5) ? 1.70 : (vnHour === 18 || vnHour === 6) ? 1.62 : 1.55
-      // Tính độ sâu ngập triều cường đặc thù theo từng tuyến đường và đỉnh triều (cm)
       dynamicDepth = Math.max(16, Math.min(histDepth, Math.round((tideLevel - elevation) * 75 + histDepth * 0.3)))
     }
 

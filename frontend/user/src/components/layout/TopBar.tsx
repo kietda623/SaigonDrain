@@ -91,9 +91,12 @@ function TopBar({
                   ? "rain"
                   : "sun"
               }
-              size={16}
+              size={15}
             />
             <span className="weather-chip-text">{weatherLabel}</span>
+            <span className="weather-chip-short">
+              {weather ? `${Math.round(weather.temperatureC)}°C` : "31°C"}
+            </span>
           </button>
         )}
 

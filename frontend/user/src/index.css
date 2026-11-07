@@ -833,28 +833,24 @@ h3 {
 }
 
 .search-input {
+  flex: 1;
+  min-width: 0;
   width: 100%;
-  border: 1px solid transparent;
-  border-radius: 7px;
-  padding: 3px 6px;
-  margin-left: -6px;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  margin: 0;
   background: transparent;
   color: var(--ink);
   font-size: 13px;
   font-weight: 600;
   font-family: inherit;
   outline: none;
-  transition: border-color 150ms ease, background 150ms ease, box-shadow 150ms ease;
 }
 
-.search-input:hover {
-  background: var(--mist);
-}
-
-.search-input:focus {
-  background: #ffffff;
-  border-color: var(--teal);
-  box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.14);
+.search-input::placeholder {
+  color: var(--ink-soft);
+  font-weight: 500;
 }
 
 .search-suggestions {
@@ -3276,15 +3272,28 @@ h3 {
   position: relative;
   display: flex;
   align-items: center;
+  gap: 4px;
+  min-height: 34px;
+  padding: 2px 4px 2px 8px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: rgba(241, 245, 249, 0.7);
+  transition: border-color 150ms ease, background 150ms ease, box-shadow 150ms ease;
 }
 
-.search-input-row .search-input {
-  padding-right: 28px;
+.search-input-row:hover {
+  background: var(--mist);
+}
+
+.search-input-row:focus-within {
+  background: #ffffff;
+  border-color: var(--teal);
+  box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.14);
 }
 
 .search-clear-btn {
-  position: absolute;
-  right: 4px;
+  position: static;
+  flex-shrink: 0;
   display: grid;
   width: 22px;
   height: 22px;
@@ -3292,12 +3301,13 @@ h3 {
   place-items: center;
   border: 0;
   border-radius: 50%;
-  background: transparent;
+  background: rgba(15, 23, 42, 0.06);
   color: var(--ink-soft);
+  cursor: pointer;
 }
 
 .search-clear-btn:hover {
-  background: var(--mist);
+  background: rgba(15, 23, 42, 0.12);
   color: var(--ink);
 }
 
@@ -4104,16 +4114,15 @@ body:has(.in-weather-view.theme-night) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  border: 1px solid var(--border-soft);
-  background: var(--surface-card);
-  color: var(--teal-accent);
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid rgba(15, 118, 110, 0.18);
+  background: #f0fdf9;
+  color: var(--teal);
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   flex-shrink: 0;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
 .search-gps-btn:hover {
@@ -4934,10 +4943,6 @@ body:has(.in-weather-view.theme-night) {
 }
 
 @media (max-width: 640px) {
-  .map-layer-control-wrap {
-    top: 106px;
-    right: 8px;
-  }
   .map-layer-popup {
     width: 250px;
   }
@@ -4998,3 +5003,348 @@ body:has(.in-weather-view.theme-night) {
   background: #10b981;
   box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
 }
+
+/* ==========================================================================
+   MOBILE & RESPONSIVE UI OPTIMIZATION (SaigonDrain AI)
+   ========================================================================== */
+
+/* 1. BottomNav 4-tab layout (Bản đồ | Theo dõi | Tuyến đường | Thời tiết) */
+.bottom-nav {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+/* 2. Weather chip responsive text */
+.weather-chip-short {
+  display: none;
+}
+
+/* 3. Zoom-adaptive Flood Markers on MapCanvas */
+.libre-flood-marker .flood-label::after {
+  content: " · ";
+}
+
+.libre-map.is-zoomed-out .libre-flood-marker:not(.critical):not(.is-expanded-marker) {
+  padding: 2px 6px;
+  font-size: 10px;
+  opacity: 0.92;
+}
+
+.libre-map.is-zoomed-out .libre-flood-marker:not(.critical):not(.is-expanded-marker) .flood-label {
+  display: none;
+}
+
+.libre-flood-marker.is-expanded-marker {
+  z-index: 30 !important;
+  transform: scale(1.06);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.35);
+}
+
+/* 4. Mobile & Tablet (< 900px) Layout Optimization */
+@media (max-width: 899px) {
+  :root {
+    --header-height: 58px;
+    --nav-height: 62px;
+  }
+
+  /* Header fits 100% on phone screens without overflowing */
+  .top-bar {
+    height: var(--header-height);
+    padding: 0 12px;
+    gap: 8px;
+    justify-content: space-between;
+  }
+
+  .top-nav-switcher {
+    display: none;
+  }
+
+  .brand-mark {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+  }
+
+  .brand-mark svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  .brand-word {
+    font-size: 15.5px;
+  }
+
+  .brand-ai {
+    padding: 2px 5px;
+    font-size: 9px;
+  }
+
+  .top-bar-actions {
+    gap: 6px;
+  }
+
+  .top-bar-actions .header-action:first-child {
+    display: grid;
+  }
+
+  .weather-chip {
+    display: inline-flex;
+    height: 34px;
+    padding: 0 9px;
+    font-size: 11.5px;
+    border: 1px solid var(--line);
+  }
+
+  .weather-chip-text {
+    display: none;
+  }
+
+  .weather-chip-short {
+    display: inline;
+    font-weight: 700;
+  }
+
+  .icon-button.header-action {
+    width: 36px;
+    height: 36px;
+    border-radius: 11px;
+  }
+
+  .user-button.is-guest,
+  .user-button.is-logged-in {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    justify-content: center;
+    border-radius: 11px;
+  }
+
+  .user-button .user-chip-name {
+    display: none;
+  }
+
+  /* Compact top search stack on mobile */
+  .map-top-stack {
+    top: 8px;
+    right: 10px;
+    left: 10px;
+    gap: 6px;
+  }
+
+  .search-vehicle-tabs {
+    margin-bottom: 5px;
+    padding: 2px 3px;
+    border-radius: 11px;
+  }
+
+  .vehicle-tab-btn {
+    padding: 4px 11px;
+    font-size: 12px;
+    border-radius: 8px;
+  }
+
+  .route-search {
+    padding: 6px 8px 6px 10px;
+    gap: 8px;
+    border-radius: 14px;
+  }
+
+  .search-points {
+    height: 46px;
+  }
+
+  .search-values {
+    gap: 4px;
+  }
+
+  .search-value {
+    padding: 0;
+  }
+
+  .search-divider {
+    display: none;
+  }
+
+  .search-input-row {
+    min-height: 32px;
+    padding: 1px 4px 1px 8px;
+    border-radius: 8px;
+  }
+
+  .search-input {
+    font-size: 12.5px;
+    padding: 0;
+  }
+
+  .swap-button {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+  }
+
+  /* Position MapLibre zoom (+/-) & compass controls cleanly on the right edge below RouteSearch */
+  .libre-map .maplibregl-ctrl-top-right {
+    display: block;
+    top: 148px;
+    right: 10px;
+    z-index: 15;
+  }
+
+  .libre-map .maplibregl-ctrl-top-right .maplibregl-ctrl-group {
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+    overflow: hidden;
+  }
+
+  .libre-map .maplibregl-ctrl-top-right .maplibregl-ctrl-group button {
+    width: 36px;
+    height: 36px;
+  }
+
+  .app-shell.panel-expanded .libre-map .maplibregl-ctrl-top-right {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /* Move Map Controls (Realtime AI / Layer Switcher) cleanly above bottom sheet on left */
+  .map-controls-group {
+    top: auto;
+    right: auto;
+    left: 10px;
+    bottom: calc(156px + env(safe-area-inset-bottom));
+    gap: 6px;
+    z-index: 20;
+    transition: opacity 180ms ease, transform 180ms ease;
+  }
+
+  .map-mode-toggle-btn,
+  .map-layer-btn {
+    height: 36px;
+    padding: 0 11px;
+    font-size: 12px;
+    border-radius: 999px;
+  }
+
+  .map-layer-popup {
+    top: auto;
+    bottom: calc(100% + 8px);
+    left: 0;
+    right: auto;
+    width: 260px;
+  }
+
+  .app-shell.panel-expanded .map-controls-group {
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  /* Report FAB aligned on the right opposite to Map Controls */
+  .report-fab {
+    right: 10px;
+    bottom: calc(154px + env(safe-area-inset-bottom));
+    height: 38px;
+    padding: 0 13px 0 6px;
+    font-size: 12px;
+    gap: 6px;
+  }
+
+  .report-fab span {
+    width: 26px;
+    height: 26px;
+  }
+
+  /* Hide redundant floating status pills on small screens to maximize map canvas */
+  .demo-label,
+  .libre-route-status {
+    display: none;
+  }
+
+  .libre-map .maplibregl-ctrl-bottom-right {
+    bottom: calc(200px + env(safe-area-inset-bottom));
+  }
+
+  /* Compact Peek Bottom Sheet when collapsed */
+  .journey-panel.is-collapsed .sheet-handle {
+    height: 16px;
+  }
+
+  .journey-panel.is-collapsed .panel-body {
+    padding: 0 12px 10px;
+    gap: 8px;
+  }
+
+  .journey-panel.is-collapsed .journey-summary {
+    padding: 8px 10px;
+    gap: 2px 9px;
+    border-radius: 13px;
+  }
+
+  .journey-panel.is-collapsed .summary-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+  }
+
+  .journey-panel.is-collapsed .summary-copy strong {
+    font-size: 13px;
+  }
+
+  .journey-panel.is-collapsed .summary-copy p {
+    font-size: 11px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .journey-panel.is-collapsed .summary-gauge,
+  .journey-panel.is-collapsed .summary-dry-badge {
+    display: none;
+  }
+
+  .journey-panel.is-collapsed .panel-actions {
+    padding: 8px 12px 10px;
+    gap: 6px;
+  }
+
+  .journey-panel.is-collapsed .start-button {
+    min-height: 46px;
+    border-radius: 12px;
+    padding: 0 14px;
+  }
+
+  .journey-panel.is-collapsed .start-button strong {
+    font-size: 13.5px;
+  }
+
+  .journey-panel.is-collapsed .report-secondary:not(.is-full) {
+    display: none;
+  }
+
+  .journey-panel.is-collapsed .report-secondary.is-full {
+    min-height: 40px;
+    padding: 8px 12px;
+    font-size: 12.5px;
+  }
+
+  /* Avoid duplicate vehicle selector inside JourneyPanel on mobile since RouteSearch already has it */
+  .mobile-panel .journey-vehicle-selector,
+  .mobile-panel .route-heading {
+    display: none;
+  }
+
+  /* Weather view bottom padding for BottomNav on mobile */
+  .weather-container {
+    padding: calc(var(--header-height) + 16px) 16px calc(var(--nav-height) + 28px) 16px;
+    gap: 18px;
+  }
+
+  .huge-temp {
+    font-size: 76px;
+  }
+
+  .weather-main-heading {
+    font-size: 26px;
+  }
+}
+

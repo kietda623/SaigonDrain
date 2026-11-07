@@ -313,40 +313,29 @@ function JourneyPanel({
         </div>
       </div>
 
-      <div className="panel-actions">
-        {hasEndpoints && hasRoute ? (
-          <>
-            <button
-              className={`start-button ${selectedRoute} ${
-                isNavigating ? "is-navigating" : ""
-              }`}
-              onClick={onStart}
-              type="button"
-            >
-              <span>
-                <small>
-                  {isNavigating ? "Đang dẫn đường" : "Bắt đầu với"}
-                </small>
-                <strong>
-                  {isNavigating
-                    ? "Kết thúc hành trình"
-                    : `${routesData[selectedRoute].name} (${routesData[selectedRoute].time})`}
-                </strong>
-              </span>
-              <Icon name={isNavigating ? "close" : "arrow"} size={21} />
-            </button>
-            <button className="report-secondary" onClick={onReport} type="button">
-              <Icon name="camera" size={18} />
-              Báo cáo hiện trường
-            </button>
-          </>
-        ) : (
-          <button className="report-secondary is-full" onClick={onReport} type="button">
-            <Icon name="camera" size={18} />
-            Báo cáo điểm ngập / sự cố hiện trường
+      {hasEndpoints && hasRoute && (
+        <div className="panel-actions">
+          <button
+            className={`start-button ${selectedRoute} ${
+              isNavigating ? "is-navigating" : ""
+            }`}
+            onClick={onStart}
+            type="button"
+          >
+            <span>
+              <small>
+                {isNavigating ? "Đang dẫn đường" : "Bắt đầu với"}
+              </small>
+              <strong>
+                {isNavigating
+                  ? "Kết thúc hành trình"
+                  : `${routesData[selectedRoute].name} (${routesData[selectedRoute].time})`}
+              </strong>
+            </span>
+            <Icon name={isNavigating ? "close" : "arrow"} size={21} />
           </button>
-        )}
-      </div>
+        </div>
+      )}
     </section>
   )
 }

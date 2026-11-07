@@ -84,6 +84,7 @@ function MapCanvas({
   const [routeVersion, setRouteVersion] = useState(0)
   const [mapLayer, setMapLayer] = useState<GoogleMapLayerType>("google-streets")
   const [showLayerMenu, setShowLayerMenu] = useState(false)
+  const [isZoomedOut, setIsZoomedOut] = useState(true)
   const layerMenuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -185,6 +186,12 @@ function MapCanvas({
       new maplibregl.AttributionControl({ compact: true }),
       "bottom-right",
     )
+
+    const updateZoomClass = () => {
+      setIsZoomedOut(map.getZoom() < 11.5)
+    }
+    map.on("zoom", updateZoomClass)
+    updateZoomClass()
 
     map.on("load", () => {
       const addRoute = (
@@ -902,10 +909,10 @@ function MapCanvas({
     }
   }, [isNavigating, ready, routeVersion, recenterTrigger, stepForwardTrigger, navigationSteps.length])
 
-  // Hiển thị các điểm ngập thực tế từ PostgreSQL lên bản đồ
+  // Hiển thị các điểm ngập và cảnh báo lên bản đồ ngay khi khởi tạo (không cần chờ tile tải xong)
   useEffect(() => {
     const map = mapRef.current
-    if (!ready || !map) return
+    if (!map) return
 
     for (const m of floodMarkersRef.current) {
       m.remove()
@@ -921,7 +928,11 @@ function MapCanvas({
       const el = document.createElement("div")
       el.className = `libre-flood-marker ${pt.severity} severity-${pt.severity}`
       el.title = `${pt.label} (${pt.district}) · Mực nước ngập: ${pt.depth} cm · Mưa: ${pt.rainfall} mm`
-      el.innerHTML = `<span class="libre-flood-pulse"></span><span class="flood-label">${pt.label}${pt.depth ? ` · ${pt.depth}cm` : ""}</span>`
+      el.innerHTML = `<span class="libre-flood-pulse"></span><span class="flood-label">${pt.label}</span><span class="flood-depth">${pt.depth ? `${pt.depth}cm` : ""}</span>`
+      el.addEventListener("click", (ev) => {
+        ev.stopPropagation()
+        el.classList.toggle("is-expanded-marker")
+      })
 
       const marker = new maplibregl.Marker({
         element: el,
@@ -1003,7 +1014,7 @@ function MapCanvas({
     <div className="libre-map-shell">
       <div
         aria-label="Bản đồ giám sát ngập và dẫn đường TP.HCM"
-        className={`libre-map layer-${mapLayer}`}
+        className={`libre-map layer-${mapLayer} ${isZoomedOut ? "is-zoomed-out" : "is-zoomed-in"}`}
         ref={containerRef}
       />
 
