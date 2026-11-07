@@ -30,7 +30,7 @@ export type IconName =
 
 export type RouteId = "safe" | "balanced"
 export type VehicleMode = "motorcycle" | "car"
-export type AppTab = "map" | "tracking" | "saved"
+export type AppTab = "map" | "tracking" | "saved" | "weather"
 export type ReportType = "flood" | "drain"
 export type Severity = "low" | "medium" | "high"
 

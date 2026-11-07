@@ -4,7 +4,6 @@ import BottomNav from "@/components/layout/BottomNav"
 import TopBar from "@/components/layout/TopBar"
 import NotificationsModal from "@/components/layout/NotificationsModal"
 import Icon from "@/components/ui/Icon"
-import WaterGauge from "@/components/ui/WaterGauge"
 import MapCanvas from "@/components/map/MapCanvas"
 import MapLegend from "@/components/map/MapLegend"
 import RouteSearch from "@/components/journey/RouteSearch"
@@ -308,6 +307,13 @@ function App() {
   }
 
   function selectTab(tab: AppTab) {
+    if (tab === "weather") {
+      setActiveTab("weather")
+      setMainView("weather")
+      setPanelExpanded(false)
+      return
+    }
+    setMainView("map")
     setActiveTab(tab)
     setPanelExpanded(tab !== "map")
   }
@@ -336,7 +342,10 @@ function App() {
           setNotifMode("guide")
           setNotifOpen(true)
         }}
-        onSelectMainTab={setMainView}
+        onSelectMainTab={(tab) => {
+          setMainView(tab)
+          setActiveTab(tab === "weather" ? "weather" : "map")
+        }}
         onSyncWeather={handleSyncWeather}
         weather={weather}
       />
@@ -419,60 +428,6 @@ function App() {
               onSelectVehicleMode={setVehicleMode}
             />
           </div>
-
-          {!isNavigating && (
-            <button
-              className={`map-risk-card ${rainValue > 0 || forecast.zone > 0 ? `zone-${forecast.zone}` : "is-sunny"}`}
-              onClick={() => {
-                setActiveTab("tracking")
-                setPanelExpanded(true)
-              }}
-              type="button"
-            >
-              <span className={`map-risk-icon ${rainValue > 0 || forecast.zone > 0 ? "" : "is-sunny"}`}>
-                <Icon
-                  name={
-                    forecast.zone === 2
-                      ? "alert"
-                      : rainValue > 0 || forecast.zone === 1
-                        ? "rain"
-                        : "sun"
-                  }
-                  size={22}
-                />
-              </span>
-              <span className="map-risk-copy">
-                {rainValue > 0 || forecast.zone > 0 ? (
-                  <>
-                    <small>{forecast.label}</small>
-                    <strong>
-                      {forecast.rain} mưa · nguy cơ {forecast.risk.toLowerCase()}
-                    </strong>
-                    <WaterGauge
-                      compact
-                      label="mm mưa"
-                      max={60}
-                      tone={forecast.zone}
-                      value={rainValue}
-                    />
-                  </>
-                ) : (
-                  <>
-                    <small>
-                      {forecast.label} · {weather ? Math.round(weather.temperatureC) : 31}°C
-                    </small>
-                    <strong>
-                      {weather?.weatherCondition || "Trời nắng ráo"} · An toàn di chuyển
-                    </strong>
-                    <span className="weather-safe-note">
-                      Đường khô ráo, không có nguy cơ ngập
-                    </span>
-                  </>
-                )}
-              </span>
-              <Icon name="chevron" size={18} />
-            </button>
-          )}
         </div>
 
         {isNavigating && (
@@ -598,34 +553,6 @@ function App() {
           </div>
         )}
 
-        {isNavigating && (
-          <div className="google-nav-hud-bottom">
-            <div className="nav-bottom-trip">
-              <div className="nav-trip-time">
-                <span className="nav-time-val">{activeRouteData.time || "12 phút"}</span>
-                <span className="nav-dot">·</span>
-                <span className="nav-dist-val">{activeRouteData.distance || "3,4 km"}</span>
-              </div>
-              <div className="nav-trip-eta">
-                <span>Dự kiến đến: <strong>{calculateEta(activeRouteData.time)}</strong></span>
-                <span className="nav-safety-badge">
-                  <Icon name="shield" size={14} />
-                  Tuyến an toàn · Đã tránh ngập
-                </span>
-              </div>
-            </div>
-            <button
-              type="button"
-              className="nav-bottom-exit-btn"
-              onClick={handleStopNavigation}
-              title="Kết thúc hành trình dẫn đường"
-            >
-              <Icon name="close" size={18} />
-              <span>Kết thúc</span>
-            </button>
-          </div>
-        )}
-
         <MapLegend selectedRoute={selectedRoute} />
 
         <button
@@ -679,9 +606,14 @@ function App() {
           />
         </div>
       )}
-
-      {!isNavigating && <BottomNav activeTab={activeTab} onSelect={selectTab} />}
         </>
+      )}
+
+      {!isNavigating && (
+        <BottomNav
+          activeTab={mainView === "weather" ? "weather" : activeTab}
+          onSelect={selectTab}
+        />
       )}
 
       <ReportModal

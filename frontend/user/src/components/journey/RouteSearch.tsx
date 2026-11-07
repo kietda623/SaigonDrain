@@ -273,7 +273,6 @@ function RouteSearch({
         </div>
         <div className="search-values">
           <label className="search-value">
-            <small>Điểm đi</small>
             <div className="search-input-row">
               <input
                 aria-label="Nhập điểm đi"
@@ -297,7 +296,7 @@ function RouteSearch({
                   }, 60)
                 }}
                 onKeyDown={(e) => handleKeyDown(e, "origin")}
-                placeholder="Nhập điểm đi hoặc bấm nút GPS…"
+                placeholder="Chọn điểm đi hoặc bấm GPS…"
                 type="text"
                 value={originText}
               />
@@ -305,34 +304,37 @@ function RouteSearch({
                 <button
                   aria-label="Xóa điểm đi"
                   className="search-clear-btn"
-                  onClick={() => {
+                  onClick={(e) => {
+                    e.preventDefault()
                     setOriginText("")
                     onSelectOrigin(null)
                     setSuggestions([])
                   }}
                   type="button"
                 >
-                  <Icon name="close" size={14} />
+                  <Icon name="close" size={13} />
                 </button>
               )}
               <button
                 aria-label="Lấy vị trí GPS hiện tại làm điểm xuất phát"
                 className={`search-gps-btn ${gpsLoading ? "is-loading" : ""}`}
-                onClick={handleGetOriginGps}
+                onClick={(e) => {
+                  e.preventDefault()
+                  handleGetOriginGps()
+                }}
                 title="Lấy vị trí GPS của bạn làm điểm xuất phát"
                 type="button"
               >
                 {gpsLoading ? (
                   <span className="search-gps-spinner" />
                 ) : (
-                  <Icon name="location" size={16} />
+                  <Icon name="location" size={15} />
                 )}
               </button>
             </div>
           </label>
           <span aria-hidden="true" className="search-divider" />
           <label className="search-value">
-            <small>Điểm đến</small>
             <div className="search-input-row">
               <input
                 aria-label="Nhập điểm đến"
@@ -356,7 +358,7 @@ function RouteSearch({
                   }, 60)
                 }}
                 onKeyDown={(e) => handleKeyDown(e, "dest")}
-                placeholder="Nhập điểm đến (tên đường, địa chỉ, địa danh…)"
+                placeholder="Tìm điểm đến, tên đường, địa chỉ…"
                 type="text"
                 value={destText}
               />
@@ -364,14 +366,15 @@ function RouteSearch({
                 <button
                   aria-label="Xóa điểm đến"
                   className="search-clear-btn"
-                  onClick={() => {
+                  onClick={(e) => {
+                    e.preventDefault()
                     setDestText("")
                     onSelectDestination(null)
                     setSuggestions([])
                   }}
                   type="button"
                 >
-                  <Icon name="close" size={14} />
+                  <Icon name="close" size={13} />
                 </button>
               )}
             </div>
